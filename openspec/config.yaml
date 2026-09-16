@@ -1,0 +1,46 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Node.js 20+, TypeScript, Express 5, npm.
+  TypeScript source is under src/ and tests are under test/.
+  Production code is compiled from TypeScript to CommonJS in dist/.
+  TypeScript strict mode is enabled; avoid any and use unknown for unknown values.
+  Exported functions should have explicit return types where practical.
+  Express routes handle HTTP concerns only; business logic belongs in services.
+  Errors are returned through centralized JSON error middleware.
+  Runtime environment variables are validated in src/config.ts; do not read process.env throughout the application.
+  Security headers, CORS, JSON request parsing, and safe error responses are configured centrally in src/app.ts.
+  New business API routes belong under /api/v1; /health remains a top-level liveness endpoint.
+  Request logs use Pino and must redact authorization, cookie, and API-key headers.
+  Validate changes with npm run check, which runs formatting, linting, type checking, and tests.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
