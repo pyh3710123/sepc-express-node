@@ -1,79 +1,137 @@
 import { z } from 'zod';
 
-const environmentSchema = z.object({
+const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  HOST: z.string().trim().min(1, 'HOST must not be empty').default('0.0.0.0'),
-  PORT: z
+  HOST: z.string().min(1).default('0.0.0.0'),
+  PORT: z.coerce.number().int().min(0).max(65535).default(3000),
+  PUBLIC_API_ORIGIN: z.string().url().optional(),
+  PUBLIC_WS_ORIGIN: z.string().url().optional(),
+  DATABASE_URL: z.string().url().default('postgres://aimanju:aimanju@localhost:5432/aimanju'),
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  ACCESS_TOKEN_SECRET: z.string().min(32).optional(),
+  REFRESH_TOKEN_SECRET: z.string().min(32).optional(),
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(900),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  ALLOWED_WEB_ORIGINS: z.string().default(''),
+  WS_ALLOWED_ORIGINS: z.string().default(''),
+  DEV_MOCK_EXTERNALS: z.enum(['true', 'false']).default('false'),
+  DEV_SMS_CODE: z
     .string()
-    .regex(/^\d+$/, 'PORT must be an integer between 0 and 65535')
-    .refine((value) => Number(value) <= 65535, 'PORT must be an integer between 0 and 65535')
-    .default('3000'),
+    .regex(/^\d{6}$/)
+    .optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  CORS_ORIGINS: z.string().default(''),
+  MAX_BATCH_NODES: z.coerce.number().int().min(1).max(1000).default(200),
+  MAX_BATCH_CONNECTIONS: z.coerce.number().int().min(1).max(2000).default(400),
+  MAX_GENERATION_TASKS: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export type NodeEnvironment = 'development' | 'test' | 'production';
-export type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
-
 export interface AppConfig {
-  readonly nodeEnv: NodeEnvironment;
-  readonly host: string;
-  readonly port: number;
-  readonly logLevel: LogLevel;
-  readonly corsOrigins: readonly string[];
+  nodeEnv: 'development' | 'test' | 'production';
+  host: string;
+  port: number;
+  publicApiOrigin?: string;
+  publicWsOrigin?: string;
+  databaseUrl: string;
+  redisUrl: string;
+  accessTokenSecret: string;
+  refreshTokenSecret: string;
+  accessTokenTtlSeconds: number;
+  refreshTokenTtlDays: number;
+  allowedWebOrigins: string[];
+  wsAllowedOrigins: string[];
+  devMockExternals: boolean;
+  devSmsCode?: string;
+  logLevel: string;
+  maxBatchNodes: number;
+  maxBatchConnections: number;
+  maxGenerationTasks: number;
 }
 
-function parseCorsOrigins(value: string): string[] {
+export const APP_CONFIG = Symbol('APP_CONFIG');
+
+function origins(value: string): string[] {
   return value
     .split(',')
-    .map((origin) => origin.trim())
+    .map((item) => item.trim())
     .filter(Boolean)
-    .map((origin) => {
-      let parsedOrigin: URL;
-
-      try {
-        parsedOrigin = new URL(origin);
-      } catch {
-        throw new Error(
-          `Invalid environment configuration: CORS_ORIGINS entry "${origin}" must be an HTTP or HTTPS origin`,
-        );
+    .map((item) => {
+      const url = new URL(item);
+      if (!['http:', 'https:'].includes(url.protocol) || url.origin !== item.replace(/\/$/, '')) {
+        throw new Error(`Invalid origin: ${item}`);
       }
-
-      if (
-        !['http:', 'https:'].includes(parsedOrigin.protocol) ||
-        parsedOrigin.pathname !== '/' ||
-        parsedOrigin.search !== '' ||
-        parsedOrigin.hash !== '' ||
-        parsedOrigin.username !== '' ||
-        parsedOrigin.password !== ''
-      ) {
-        throw new Error(
-          `Invalid environment configuration: CORS_ORIGINS entry "${origin}" must be an HTTP or HTTPS origin`,
-        );
-      }
-
-      return parsedOrigin.origin;
+      return url.origin;
     });
 }
 
-export function loadConfig(
-  environment: Readonly<Record<string, string | undefined>> = process.env,
-): AppConfig {
-  const parsed = environmentSchema.safeParse(environment);
-
-  if (!parsed.success) {
-    const details = parsed.error.issues
-      .map((issue) => `${issue.path.join('.') || 'environment'}: ${issue.message}`)
-      .join('; ');
-
-    throw new Error(`Invalid environment configuration: ${details}`);
+export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+  const parsed = schema.safeParse(env);
+  if (!parsed.success)
+    throw new Error(`Invalid environment configuration: ${parsed.error.message}`);
+  const value = parsed.data;
+  if (!['postgres:', 'postgresql:'].includes(new URL(value.DATABASE_URL).protocol)) {
+    throw new Error('DATABASE_URL must use postgres:// or postgresql://');
   }
-
+  if (!['redis:', 'rediss:'].includes(new URL(value.REDIS_URL).protocol)) {
+    throw new Error('REDIS_URL must use redis:// or rediss://');
+  }
+  const allowedWebOrigins = origins(value.ALLOWED_WEB_ORIGINS);
+  const wsAllowedOrigins = origins(value.WS_ALLOWED_ORIGINS);
+  if (
+    value.NODE_ENV === 'production' &&
+    (!value.ACCESS_TOKEN_SECRET || !value.REFRESH_TOKEN_SECRET)
+  ) {
+    throw new Error('Production requires ACCESS_TOKEN_SECRET and REFRESH_TOKEN_SECRET');
+  }
+  if (value.NODE_ENV === 'production' && value.DEV_MOCK_EXTERNALS === 'true') {
+    throw new Error('DEV_MOCK_EXTERNALS is forbidden in production');
+  }
+  if (value.NODE_ENV === 'production') {
+    if (
+      !env.DATABASE_URL ||
+      !env.REDIS_URL ||
+      !value.PUBLIC_API_ORIGIN ||
+      !value.PUBLIC_WS_ORIGIN
+    ) {
+      throw new Error(
+        'Production requires DATABASE_URL, REDIS_URL, PUBLIC_API_ORIGIN and PUBLIC_WS_ORIGIN',
+      );
+    }
+    if (
+      new URL(value.PUBLIC_API_ORIGIN).protocol !== 'https:' ||
+      new URL(value.PUBLIC_WS_ORIGIN).protocol !== 'wss:' ||
+      new URL(value.PUBLIC_API_ORIGIN).origin !== value.PUBLIC_API_ORIGIN.replace(/\/$/, '') ||
+      new URL(value.PUBLIC_WS_ORIGIN).origin !== value.PUBLIC_WS_ORIGIN.replace(/\/$/, '')
+    ) {
+      throw new Error('Production requires HTTPS and WSS public origins');
+    }
+    if (!allowedWebOrigins.length || !wsAllowedOrigins.length) {
+      throw new Error('Production requires ALLOWED_WEB_ORIGINS and WS_ALLOWED_ORIGINS');
+    }
+    if (
+      [...allowedWebOrigins, ...wsAllowedOrigins].some((origin) => !origin.startsWith('https://'))
+    ) {
+      throw new Error('Production browser origins must use HTTPS');
+    }
+  }
   return {
-    nodeEnv: parsed.data.NODE_ENV,
-    host: parsed.data.HOST,
-    port: Number(parsed.data.PORT),
-    logLevel: parsed.data.LOG_LEVEL,
-    corsOrigins: parseCorsOrigins(parsed.data.CORS_ORIGINS),
+    nodeEnv: value.NODE_ENV,
+    host: value.HOST,
+    port: value.PORT,
+    publicApiOrigin: value.PUBLIC_API_ORIGIN,
+    publicWsOrigin: value.PUBLIC_WS_ORIGIN,
+    databaseUrl: value.DATABASE_URL,
+    redisUrl: value.REDIS_URL,
+    accessTokenSecret: value.ACCESS_TOKEN_SECRET ?? 'development-access-secret-change-me-0000',
+    refreshTokenSecret: value.REFRESH_TOKEN_SECRET ?? 'development-refresh-secret-change-me-000',
+    accessTokenTtlSeconds: value.ACCESS_TOKEN_TTL_SECONDS,
+    refreshTokenTtlDays: value.REFRESH_TOKEN_TTL_DAYS,
+    allowedWebOrigins,
+    wsAllowedOrigins,
+    devMockExternals: value.DEV_MOCK_EXTERNALS === 'true',
+    devSmsCode: value.DEV_SMS_CODE,
+    logLevel: value.LOG_LEVEL,
+    maxBatchNodes: value.MAX_BATCH_NODES,
+    maxBatchConnections: value.MAX_BATCH_CONNECTIONS,
+    maxGenerationTasks: value.MAX_GENERATION_TASKS,
   };
 }

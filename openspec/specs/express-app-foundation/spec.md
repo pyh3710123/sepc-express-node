@@ -1,56 +1,52 @@
-# express-app-foundation Specification
+# Backend Service Foundation Specification
 
 ## Purpose
-为项目提供一个可直接启动、可独立测试且具有稳定基础 HTTP 行为的 Express 应用骨架，作为后续业务功能开发的运行基础。
+
+Provide a standalone AImanju backend whose HTTP and WebSocket paths follow `docs/node/backend-generation-spec.md`.
 
 ## Requirements
 
-### Requirement: Project provides a runnable HTTP service
+### Requirement: Service starts with validated configuration
 
-项目 SHALL 提供一个标准的 `npm start` 命令来启动 HTTP 服务。服务 SHALL 使用 `PORT` 环境变量指定端口；当 `PORT` 未设置时 SHALL 使用端口 `3000`。
+The project SHALL build under Node.js 22 and start the API with `npm start`. It SHALL reject production configuration without separate access and refresh secrets and SHALL forbid development mock adapters in production.
 
-#### Scenario: Start service with the default port
+#### Scenario: Missing production secrets
 
-- **WHEN** 用户在未设置 `PORT` 的情况下执行 `npm start`
-- **THEN** 项目 SHALL 启动 HTTP 服务并监听端口 `3000`
+- **WHEN** the service starts with `NODE_ENV=production` and no token secrets
+- **THEN** startup SHALL fail before accepting requests
 
-#### Scenario: Start service with a custom port
+### Requirement: Service exposes health checks
 
-- **WHEN** 用户设置有效的 `PORT` 值后执行 `npm start`
-- **THEN** 项目 SHALL 启动 HTTP 服务并监听该端口
+The API SHALL return `{ "status": "ok" }` from `GET /health`; `GET /ready` SHALL verify PostgreSQL and Redis dependencies.
 
-### Requirement: Service exposes a health check
+#### Scenario: Healthy API
 
-服务 SHALL 提供 `GET /health` 接口。请求成功时 SHALL 返回 HTTP 状态码 `200`、`application/json` 内容类型，以及 JSON 响应 `{ "status": "ok" }`。
+- **WHEN** the client requests `/health`
+- **THEN** the service SHALL return HTTP 200 and JSON `status=ok`
 
-#### Scenario: Health check succeeds
+### Requirement: Business APIs use the client protocol
 
-- **WHEN** 客户端向 `/health` 发送 GET 请求
-- **THEN** 服务 SHALL 返回状态码 `200` 和 `status` 值为 `ok` 的 JSON 响应
+Business HTTP paths SHALL be under `/api`, use snake_case boundary fields, and return `{code,message,data}` on success and error. Authentication SHALL use Bearer access tokens, except `/api/auth/refresh`, which uses the refresh token.
 
-### Requirement: Service returns a JSON response for unknown routes
+#### Scenario: Unauthorized business request
 
-当请求路径没有匹配的路由时，服务 SHALL 返回 HTTP 状态码 `404` 和 JSON 响应 `{ "error": "Not Found" }`。
+- **WHEN** a client requests a protected `/api` route without an access token
+- **THEN** the service SHALL return HTTP 401 and `code=401`
 
-#### Scenario: Unknown route is requested
+### Requirement: Graph writes are atomic
 
-- **WHEN** 客户端请求一个未注册的路径
-- **THEN** 服务 SHALL 返回状态码 `404`、JSON 内容类型和 `error` 值为 `Not Found` 的响应
+`POST /api/node/batch` SHALL verify account ownership and `expected_version`, validate all node and connection operations, and commit the graph, version increment, event, and outbox in one PostgreSQL transaction. A conflicting version SHALL return 409 with `data.current_version` and make no graph changes.
 
-### Requirement: Service returns a safe JSON response for unexpected errors
+#### Scenario: Stale graph version
 
-当服务处理请求时发生未预期错误，服务 SHALL 返回 HTTP 状态码 `500` 和 JSON 响应 `{ "error": "Internal Server Error" }`，且响应 SHALL 不包含堆栈信息。
+- **WHEN** a client submits a stale `expected_version`
+- **THEN** the service SHALL reject the complete batch with the current version
 
-#### Scenario: Unexpected request error occurs
+### Requirement: Accepted generation is durable and idempotent
 
-- **WHEN** 已注册路由在处理请求时产生未预期错误
-- **THEN** 服务 SHALL 返回状态码 `500` 和通用错误 JSON 响应，且不向客户端暴露错误堆栈
+For a stable `request_id`, generation creation SHALL persist one intention and stable task IDs per account and endpoint. Deduction, tasks, and outbox SHALL commit atomically. A repeated ID with different semantics SHALL return 409; provider absence in production SHALL return an explicit service error.
 
-### Requirement: Project provides a repeatable test command
+#### Scenario: Lost response and retry
 
-项目 SHALL 提供一个标准的 `npm test` 命令，用于自动验证基础 HTTP 行为，并在测试失败时返回非零退出码。
-
-#### Scenario: Baseline tests pass
-
-- **WHEN** 用户执行 `npm test`
-- **THEN** 健康检查和基础错误响应测试 SHALL 执行成功并返回零退出码
+- **WHEN** a client repeats the same accepted request ID and payload
+- **THEN** the service SHALL return the original task ID without a second deduction

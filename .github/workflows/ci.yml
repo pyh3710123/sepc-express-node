@@ -11,6 +11,31 @@ jobs:
   quality:
     name: Quality checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aimanju
+          POSTGRES_USER: aimanju
+          POSTGRES_PASSWORD: aimanju
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aimanju -d aimanju"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://aimanju:aimanju@localhost:5432/aimanju
+      REDIS_URL: redis://localhost:6379
+      DEV_MOCK_EXTERNALS: 'true'
+      TEST_DATABASE_URL: '1'
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,7 +43,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -26,6 +51,14 @@ jobs:
 
       - name: Run checks
         run: npm run check
+
+      - name: Migrate and seed PostgreSQL
+        run: |
+          npm run db:migrate
+          npm run db:seed:dev
+
+      - name: Run database integration tests
+        run: npm run test:integration
 
       - name: Build production output
         run: npm run build

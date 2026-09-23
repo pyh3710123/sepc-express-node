@@ -1,0 +1,27 @@
+--- tests/e2e/text-rich-editor.e2e.ts
++++ tests/e2e/text-rich-editor.e2e.ts
+@@ -84,8 +84,11 @@
+         .find(update => update.uuid === nodeId && update.content?.includes(contentText))
+       expect(saved?.extra_data).not.toHaveProperty('content')
+       expect(saved?.size).toEqual({ width: 360, height: 240 })
+-      if (inGroup)
+-        expect(saved?.parent_uuid).toBe(groupId)
++      if (inGroup) {
++        // 纯正文更新沿用增量协议，未变化的父组不重复提交；远端详情必须保留归属。
++        expect(saved).not.toHaveProperty('parent_uuid')
++        expect(canvasState.canvasDetail.nodes.find(node => node.uuid === nodeId)?.parent_uuid).toBe(groupId)
++      }
+       const boxAfter = await node.boundingBox()
+       expect(boxAfter).not.toBeNull()
+       expect(Math.abs((boxAfter?.x ?? 0) - (boxBefore?.x ?? 0))).toBeLessThanOrEqual(1)
+@@ -100,6 +103,10 @@
+       await node.click({ position: { x: 30, y: 30 } })
+       await expect(preview).toHaveText(contentText)
+       await expect(preview.locator('strong')).toHaveText(contentText)
++      if (inGroup) {
++        await expect(page.locator(`.vue-flow__node[data-id="${groupId}"]`)).toBeVisible()
++        expect(canvasState.canvasDetail.nodes.find(node => node.uuid === nodeId)?.parent_uuid).toBe(groupId)
++      }
+     })
+   }
+ }

@@ -1,16 +1,19 @@
 schema: spec-driven
 
 context: |
-  Tech stack: Node.js 20+, TypeScript, Express 5, npm.
+  Tech stack: Node.js 22+, TypeScript, NestJS/Fastify, PostgreSQL, Redis/BullMQ, native WebSocket, npm.
   TypeScript source is under src/ and tests are under test/.
   Production code is compiled from TypeScript to CommonJS in dist/.
   TypeScript strict mode is enabled; avoid any and use unknown for unknown values.
   Exported functions should have explicit return types where practical.
-  Express routes handle HTTP concerns only; business logic belongs in services.
-  Errors are returned through centralized JSON error middleware.
+  Controllers handle HTTP concerns only; business logic belongs in services.
+  Business responses use {code,message,data}; errors are returned through a global exception filter.
   Runtime environment variables are validated in src/config.ts; do not read process.env throughout the application.
-  Security headers, CORS, JSON request parsing, and safe error responses are configured centrally in src/app.ts.
-  New business API routes belong under /api/v1; /health remains a top-level liveness endpoint.
+  Security headers, CORS, request limits, and safe error responses are configured in src/main.ts.
+  Business API routes belong under /api; /health and /ready remain top-level checks.
+  The contract source is docs/node/backend-generation-spec.md; implemented paths are in openapi/openapi.json.
+  Account identity comes from a validated server-side session, never from request account_id.
+  Paid generation, credit ledger, task records, and outbox must commit in one PostgreSQL transaction.
   Request logs use Pino and must redact authorization, cookie, and API-key headers.
   Validate changes with npm run check, which runs formatting, linting, type checking, and tests.
 
