@@ -7,6 +7,7 @@ import { APP_CONFIG, type AppConfig } from './config';
 export class Database implements OnModuleDestroy {
   private readonly pool: Pool;
 
+  /** 根据已校验配置创建连接池，并记录空闲连接错误。 */
   constructor(@Inject(APP_CONFIG) config: AppConfig) {
     this.pool = new Pool({ connectionString: config.databaseUrl, max: 20 });
     this.pool.on('error', (error) => {
@@ -20,6 +21,7 @@ export class Database implements OnModuleDestroy {
     });
   }
 
+  /** 使用连接池执行参数化 SQL 查询。 */
   query<T extends QueryResultRow = QueryResultRow>(
     sql: string,
     values: unknown[] = [],
@@ -27,6 +29,7 @@ export class Database implements OnModuleDestroy {
     return this.pool.query<T>(sql, values);
   }
 
+  /** 在同一连接内执行事务，并在失败时回滚后继续抛出原错误。 */
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
@@ -42,6 +45,7 @@ export class Database implements OnModuleDestroy {
     }
   }
 
+  /** 应用关闭时释放 PostgreSQL 连接池。 */
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
   }

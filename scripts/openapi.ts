@@ -11,6 +11,8 @@ type Route = {
   parameters?: unknown[];
   unavailable?: boolean;
   dataExample?: unknown;
+  dataSchema?: string;
+  rateLimited?: boolean;
 };
 const pathId = { name: 'id', in: 'path', required: true, schema: { type: 'integer', minimum: 1 } };
 const pagination = [
@@ -46,6 +48,7 @@ const routes: Route[] = [
     public: true,
     body: 'PasswordLogin',
     dataExample: { access_token: '<jwt>', refresh_token: '<opaque>' },
+    dataSchema: 'AuthTokens',
   },
   {
     method: 'post',
@@ -54,14 +57,19 @@ const routes: Route[] = [
     tag: 'Auth',
     public: true,
     body: 'SmsSend',
+    dataExample: { mock: true },
+    dataSchema: 'SmsSendResult',
+    rateLimited: true,
   },
   {
     method: 'post',
     path: '/api/login/sms',
-    summary: '短信登录',
+    summary: '短信登录；首次使用手机号自动注册个人账号',
     tag: 'Auth',
     public: true,
     body: 'SmsLogin',
+    dataExample: { access_token: '<jwt>', refresh_token: '<opaque>' },
+    dataSchema: 'AuthTokens',
   },
   {
     method: 'post',
@@ -84,6 +92,8 @@ const routes: Route[] = [
     path: '/api/auth/refresh',
     summary: '使用 Bearer refresh token 轮换会话',
     tag: 'Auth',
+    dataExample: { access_token: '<jwt>', refresh_token: '<opaque>' },
+    dataSchema: 'AuthTokens',
   },
   { method: 'get', path: '/api/user/info', summary: '当前用户及活跃账号', tag: 'Accounts' },
   { method: 'get', path: '/api/account', summary: '可切换账号', tag: 'Accounts' },
@@ -109,22 +119,142 @@ const routes: Route[] = [
     parameters: pagination,
     dataExample: { list: [], total: 0 },
   },
-  { method: 'get', path: '/api/home/init', summary: '首页基础配置（待前端契约联调）', tag: 'Home' },
+  {
+    method: 'get',
+    path: '/api/home/init',
+    summary: '首页基础配置（字段仍待前端契约联调）',
+    tag: 'Home',
+    dataExample: { model_enabled: false },
+    dataSchema: 'HomeInit',
+  },
+  {
+    method: 'get',
+    path: '/api/home/carousel',
+    summary: '当前已发布且在展示期内的首页轮播',
+    tag: 'Home',
+    public: true,
+    dataExample: { list: [], total: 0 },
+    dataSchema: 'HomeCarousel',
+  },
   {
     method: 'get',
     path: '/api/drama',
     summary: '分页查询当前账号短剧',
     tag: 'Canvas',
-    parameters: pagination,
+    parameters: [
+      ...pagination,
+      { name: 'parent_id', in: 'query', schema: { type: 'integer', minimum: 0 } },
+      { name: 'name', in: 'query', schema: { type: 'string', maxLength: 100 } },
+      { name: 'all', in: 'query', schema: { type: 'string', enum: ['0', '1', '2'] } },
+    ],
+    dataExample: { list: [], total: 0, drama_total: 0, group_total: 0 },
+    dataSchema: 'DramaList',
+  },
+  {
+    method: 'get',
+    path: '/api/drama/subset',
+    summary: '平铺当前账号全部短剧，供团队权限选择器使用',
+    tag: 'Canvas',
+    parameters: [
+      { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+      { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 1000 } },
+    ],
     dataExample: { list: [], total: 0 },
+    dataSchema: 'DramaSubset',
   },
   {
     method: 'post',
     path: '/api/drama',
-    summary: '创建短剧',
+    summary: '创建短剧并返回首张画布，或创建项目组',
     tag: 'Canvas',
     body: 'CreateDrama',
-    dataExample: { drama_id: 1 },
+    dataExample: { drama_id: 1, canvas_id: 2 },
+    dataSchema: 'CreatedDrama',
+  },
+  {
+    method: 'put',
+    path: '/api/drama',
+    summary: '更新当前账号未删除项目的标题或已登记图片封面',
+    tag: 'Canvas',
+    body: 'UpdateDrama',
+    dataExample: { drama_id: 1, title: '新标题', cover_image: null },
+    dataSchema: 'DramaUpdateResult',
+  },
+  {
+    method: 'delete',
+    path: '/api/drama',
+    summary: '批量将项目及子项目移入回收站',
+    tag: 'Canvas',
+    body: 'DramaIds',
+    dataExample: { deleted_ids: [1] },
+    dataSchema: 'DestroyedDramas',
+  },
+  {
+    method: 'post',
+    path: '/api/drama/move',
+    summary: '移出项目组或移动单个短剧至当前账号项目组',
+    tag: 'Canvas',
+    body: 'MoveDrama',
+    dataExample: { moved_ids: [1], parent_id: 2 },
+    dataSchema: 'MovedDramas',
+  },
+  {
+    method: 'post',
+    path: '/api/drama/batchMove',
+    summary: '批量移出或移动短剧项目',
+    tag: 'Canvas',
+    body: 'BatchMoveDrama',
+    dataExample: { moved_ids: [1, 2], parent_id: null },
+    dataSchema: 'MovedDramas',
+  },
+  {
+    method: 'post',
+    path: '/api/drama/merge',
+    summary: '将同一层级的短剧合并到新项目组',
+    tag: 'Canvas',
+    body: 'MergeDrama',
+    dataExample: { drama_id: 3, moved_ids: [1, 2] },
+    dataSchema: 'MergedDramas',
+  },
+  {
+    method: 'post',
+    path: '/api/drama/untie',
+    summary: '解除项目组并保留组内项目',
+    tag: 'Canvas',
+    body: 'DramaIds',
+    dataExample: { untied_ids: [3] },
+    dataSchema: 'UntiedDramas',
+  },
+  {
+    method: 'get',
+    path: '/api/project/recycle',
+    summary: '分页查询当前账号回收站',
+    tag: 'Canvas',
+    parameters: [
+      ...pagination,
+      { name: 'name', in: 'query', schema: { type: 'string', maxLength: 100 } },
+      { name: 'type', in: 'query', schema: { type: 'string', enum: ['drama', 'script', ''] } },
+    ],
+    dataExample: { list: [], total: 0 },
+    dataSchema: 'RecycledDramaList',
+  },
+  {
+    method: 'post',
+    path: '/api/project/recycle/restore',
+    summary: '批量恢复当前账号已删除项目及同批删除的子项目',
+    tag: 'Canvas',
+    body: 'DramaIds',
+    dataExample: { restored_ids: [1] },
+    dataSchema: 'RestoredDramas',
+  },
+  {
+    method: 'delete',
+    path: '/api/project/recycle',
+    summary: '批量永久删除回收站项目及子项目；进行中任务存在时返回 409',
+    tag: 'Canvas',
+    body: 'DramaIds',
+    dataExample: { deleted_ids: [1] },
+    dataSchema: 'DestroyedDramas',
   },
   {
     method: 'post',
@@ -304,21 +434,26 @@ const routes: Route[] = [
   },
 ];
 
-const object = (properties: Record<string, unknown>, required: string[] = []) => ({
-  type: 'object',
-  properties,
-  required,
-  additionalProperties: false,
-});
+/** 生成拒绝未声明字段的 OpenAPI 对象结构。 */
+function object(properties: Record<string, unknown>, required: string[] = []) {
+  return {
+    type: 'object',
+    properties,
+    required,
+    additionalProperties: false,
+  };
+}
 const integer = { type: 'integer', minimum: 1 };
 const string = { type: 'string' };
 const point = object({ x: { type: 'number' }, y: { type: 'number' } }, ['x', 'y']);
-const op = (create: unknown, update: unknown) =>
-  object({
+/** 生成画布批量变更中的新增、更新和删除数组结构。 */
+function op(create: unknown, update: unknown) {
+  return object({
     create: { type: 'array', items: create },
     update: { type: 'array', items: update },
     delete: { type: 'array', items: object({ id: integer }, ['id']) },
   });
+}
 const components = {
   securitySchemes: { BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
   schemas: {
@@ -336,14 +471,188 @@ const components = {
       ['code', 'message'],
     ),
     PasswordLogin: object({ username: string, password: string }, ['username', 'password']),
+    AuthTokens: object({ access_token: string, refresh_token: string }, [
+      'access_token',
+      'refresh_token',
+    ]),
     SmsSend: object(
       { mobile: string, sendType: { type: 'string', enum: ['login_register', 'bind_phone'] } },
       ['mobile', 'sendType'],
     ),
     SmsLogin: object({ mobile: string, captcha: string }, ['mobile', 'captcha']),
+    SmsSendResult: object({ mock: { type: 'boolean', const: true } }, ['mock']),
     WechatLogin: object({ code: string }, ['code']),
+    HomeInit: object({ model_enabled: { type: 'boolean' } }, ['model_enabled']),
+    HomeCarouselItem: object(
+      {
+        id: integer,
+        title: string,
+        image_url: { type: 'string', format: 'uri' },
+        link_url: { type: ['string', 'null'] },
+      },
+      ['id', 'title', 'image_url', 'link_url'],
+    ),
+    HomeCarousel: object(
+      {
+        list: { type: 'array', items: { $ref: '#/components/schemas/HomeCarouselItem' } },
+        total: { type: 'integer', minimum: 0 },
+      },
+      ['list', 'total'],
+    ),
     ChangeAccount: object({ account_id: integer }, ['account_id']),
-    CreateDrama: object({ title: string }, ['title']),
+    CreateDrama: object({
+      parent_id: { type: 'integer', minimum: 0, default: 0 },
+      is_group: { type: 'boolean', default: false },
+      title: { type: 'string', minLength: 1, maxLength: 200 },
+    }),
+    CreatedDrama: object({ drama_id: integer, canvas_id: integer }, ['drama_id']),
+    DramaIds: object(
+      { ids: { type: 'array', items: integer, minItems: 1, maxItems: 100, uniqueItems: true } },
+      ['ids'],
+    ),
+    MoveDrama: {
+      oneOf: [
+        object({ action: { type: 'string', const: 'remove' }, drama_id: integer }, [
+          'action',
+          'drama_id',
+        ]),
+        object(
+          { action: { type: 'string', const: 'transfer' }, drama_id: integer, target_id: integer },
+          ['action', 'drama_id', 'target_id'],
+        ),
+      ],
+    },
+    BatchMoveDrama: {
+      oneOf: [
+        object(
+          {
+            action: { type: 'string', const: 'remove' },
+            ids: { type: 'array', items: integer, minItems: 1, maxItems: 100, uniqueItems: true },
+          },
+          ['action', 'ids'],
+        ),
+        object(
+          {
+            action: { type: 'string', const: 'transfer' },
+            ids: { type: 'array', items: integer, minItems: 1, maxItems: 100, uniqueItems: true },
+            target_id: integer,
+          },
+          ['action', 'ids', 'target_id'],
+        ),
+      ],
+    },
+    MergeDrama: object(
+      { ids: { type: 'array', items: integer, minItems: 2, maxItems: 100, uniqueItems: true } },
+      ['ids'],
+    ),
+    MovedDramas: object(
+      { moved_ids: { type: 'array', items: integer }, parent_id: { type: ['integer', 'null'] } },
+      ['moved_ids', 'parent_id'],
+    ),
+    MergedDramas: object({ drama_id: integer, moved_ids: { type: 'array', items: integer } }, [
+      'drama_id',
+      'moved_ids',
+    ]),
+    UntiedDramas: object({ untied_ids: { type: 'array', items: integer } }, ['untied_ids']),
+    UpdateDrama: {
+      ...object(
+        {
+          drama_id: integer,
+          title: { type: 'string', minLength: 1, maxLength: 200 },
+          cover_image: { type: ['string', 'null'], format: 'uri' },
+        },
+        ['drama_id'],
+      ),
+      anyOf: [{ required: ['title'] }, { required: ['cover_image'] }],
+    },
+    DramaUpdateResult: object(
+      { drama_id: integer, title: string, cover_image: { type: ['string', 'null'] } },
+      ['drama_id', 'title', 'cover_image'],
+    ),
+    RestoredDramas: object({ restored_ids: { type: 'array', items: integer } }, ['restored_ids']),
+    DestroyedDramas: object({ deleted_ids: { type: 'array', items: integer } }, ['deleted_ids']),
+    DramaSummary: object(
+      {
+        drama_id: integer,
+        title: string,
+        type: string,
+        is_group: { type: 'boolean' },
+        parent_id: { type: ['integer', 'null'] },
+        canvas_id: { type: ['integer', 'null'] },
+        cover_image: { type: ['string', 'null'] },
+        child_count: { type: 'integer', minimum: 0 },
+        create_time: string,
+        permission_code: string,
+        created_at: { type: 'string', format: 'date-time' },
+        updated_at: { type: 'string', format: 'date-time' },
+      },
+      [
+        'drama_id',
+        'title',
+        'type',
+        'is_group',
+        'parent_id',
+        'canvas_id',
+        'cover_image',
+        'child_count',
+        'create_time',
+        'permission_code',
+        'created_at',
+        'updated_at',
+      ],
+    ),
+    RecycledDrama: object(
+      {
+        id: integer,
+        drama_id: integer,
+        project_name: string,
+        project_type: { type: 'string', const: 'drama' },
+        project_create_time: string,
+        project_delete_time: string,
+        deleted_at: { type: 'string', format: 'date-time' },
+      },
+      [
+        'id',
+        'drama_id',
+        'project_name',
+        'project_type',
+        'project_create_time',
+        'project_delete_time',
+        'deleted_at',
+      ],
+    ),
+    DramaList: object(
+      {
+        list: { type: 'array', items: { $ref: '#/components/schemas/DramaSummary' } },
+        total: { type: 'integer', minimum: 0 },
+        drama_total: { type: 'integer', minimum: 0 },
+        group_total: { type: 'integer', minimum: 0 },
+      },
+      ['list', 'total', 'drama_total', 'group_total'],
+    ),
+    DramaSubsetItem: object(
+      {
+        drama_id: integer,
+        title: string,
+        parent_id: { type: ['integer', 'null'] },
+        canvas_id: { type: ['integer', 'null'] },
+      },
+      ['drama_id', 'title', 'parent_id', 'canvas_id'],
+    ),
+    DramaSubset: object(
+      {
+        list: { type: 'array', items: { $ref: '#/components/schemas/DramaSubsetItem' } },
+        total: { type: 'integer', minimum: 0 },
+      },
+      ['list', 'total'],
+    ),
+    RecycledDramaList: object(
+      {
+        list: { type: 'array', items: { $ref: '#/components/schemas/RecycledDrama' } },
+        total: { type: 'integer', minimum: 0 },
+      },
+      ['list', 'total'],
+    ),
     CreateCanvas: object({ drama_id: integer, title: string }, ['drama_id', 'title']),
     RenameCanvas: object({ canvas_id: integer, canvas_title: string }, [
       'canvas_id',
@@ -465,7 +774,7 @@ const components = {
 
 const paths: Record<string, Record<string, unknown>> = {};
 for (const route of routes) {
-  const response = route.unavailable
+  const response: Record<string, unknown> = route.unavailable
     ? {
         '503': {
           description: '外部服务未配置或功能待接入',
@@ -477,12 +786,22 @@ for (const route of routes) {
           description: '成功',
           content: {
             'application/json': {
-              schema: {
-                $ref:
-                  route.path === '/health' || route.path === '/ready'
-                    ? '#/components/schemas/Health'
-                    : '#/components/schemas/Envelope',
-              },
+              schema:
+                route.dataSchema && route.path !== '/health' && route.path !== '/ready'
+                  ? object(
+                      {
+                        code: { type: 'integer', const: 200 },
+                        message: { type: 'string', const: 'ok' },
+                        data: { $ref: `#/components/schemas/${route.dataSchema}` },
+                      },
+                      ['code', 'message', 'data'],
+                    )
+                  : {
+                      $ref:
+                        route.path === '/health' || route.path === '/ready'
+                          ? '#/components/schemas/Health'
+                          : '#/components/schemas/Envelope',
+                    },
               example:
                 route.path === '/health' || route.path === '/ready'
                   ? route.dataExample
@@ -515,6 +834,18 @@ for (const route of routes) {
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
         },
       };
+  if (route.unavailable && route.body) {
+    response['400'] = {
+      description: '请求参数无效',
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+    };
+  }
+  if (route.rateLimited) {
+    response['429'] = {
+      description: '发送过于频繁或达到每日上限',
+      content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+    };
+  }
   const operation: Record<string, unknown> = {
     tags: [route.tag],
     summary: route.summary,
@@ -545,6 +876,7 @@ const document = {
   paths,
   components,
 };
+/** 根据路由定义生成 OpenAPI 文件，或在检查模式比较已生成文件。 */
 async function main() {
   const path = join(process.cwd(), 'openapi', 'openapi.json');
   const generated = JSON.stringify(document, null, 2) + '\n';

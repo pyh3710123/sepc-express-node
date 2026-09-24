@@ -7,8 +7,9 @@ import Redis from 'ioredis';
 import { AppModule } from './app.module';
 import { APP_CONFIG, type AppConfig } from './config';
 import { Database } from './database';
-import { GenerationService } from './generation';
+import { GenerationService } from './features/generation/generation.service';
 
+/** 启动任务消费者，并轮询事务 outbox 投递生成和画布事件。 */
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule);
   const config = app.get<AppConfig>(APP_CONFIG);
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
     console.error({ task_id: job?.data.task_id, error: error.message }),
   );
   let active = true;
+  /** 按批锁定未投递事件，成功发布后再标记已投递。 */
   const dispatch = async () => {
     while (active) {
       try {
@@ -68,6 +70,7 @@ async function main(): Promise<void> {
     }
   };
   const dispatchPromise = dispatch();
+  /** 停止轮询并按依赖顺序关闭队列、Redis 与 Nest 应用。 */
   const shutdown = async () => {
     active = false;
     await dispatchPromise;

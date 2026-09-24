@@ -1,7 +1,8 @@
 import pino from 'pino';
 import type { AppConfig } from './config';
 
-export function createLogger(config: AppConfig) {
+/** 创建带服务标识、ISO 时间戳和敏感字段脱敏规则的结构化日志器。 */
+export function createLogger(config: AppConfig): ReturnType<typeof pino> {
   return pino({
     level: config.logLevel,
     base: { service: 'aimanju-backend', environment: config.nodeEnv },

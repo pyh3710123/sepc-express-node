@@ -8,9 +8,42 @@ permissions:
   contents: read
 
 jobs:
-  quality:
-    name: Quality checks
+  static:
+    name: Typecheck and build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run openapi:check
+      - run: npm run build
+
+  unit:
+    name: Unit and HTTP tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  integration:
+    name: PostgreSQL and Redis integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -35,30 +68,33 @@ jobs:
       DATABASE_URL: postgres://aimanju:aimanju@localhost:5432/aimanju
       REDIS_URL: redis://localhost:6379
       DEV_MOCK_EXTERNALS: 'true'
+      DEV_SMS_CODE: '123456'
       TEST_DATABASE_URL: '1'
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:seed:dev
+      - run: npm run test:integration
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run checks
-        run: npm run check
-
-      - name: Migrate and seed PostgreSQL
+  # 在远端分支保护中将 quality-gate 设为必需检查；跳过的任务也不能放行。
+  quality-gate:
+    name: quality-gate
+    if: always()
+    needs: [static, unit, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all validation jobs to succeed
+        env:
+          STATIC_RESULT: ${{ needs.static.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
         run: |
-          npm run db:migrate
-          npm run db:seed:dev
-
-      - name: Run database integration tests
-        run: npm run test:integration
-
-      - name: Build production output
-        run: npm run build
+          if [ "$STATIC_RESULT" != success ] || [ "$UNIT_RESULT" != success ] || [ "$INTEGRATION_RESULT" != success ]; then
+            printf 'static=%s unit=%s integration=%s\n' "$STATIC_RESULT" "$UNIT_RESULT" "$INTEGRATION_RESULT"
+            exit 1
+          fi

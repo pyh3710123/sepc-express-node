@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { Body, Controller, Get, Inject, Injectable, Post, Req, UseGuards } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { PoolClient, QueryResultRow } from 'pg';
 import { z } from 'zod';
-import { AppError, parse } from './common';
-import { AuthGuard, type AuthedRequest, type Identity } from './auth';
-import { APP_CONFIG, type AppConfig } from './config';
-import { Database, type QueryExecutor } from './database';
+import { AppError, parse } from '../../common';
+import type { Identity } from '../auth';
+import { APP_CONFIG, type AppConfig } from '../../config';
+import { Database, type QueryExecutor } from '../../database';
 
 const id = z.coerce.number().int().positive();
 const scalar = z.union([z.string().max(1000), z.number().finite(), z.boolean()]);
@@ -90,6 +90,31 @@ interface Capability extends QueryResultRow {
   price_credits: number;
   provider: string;
 }
+interface ModelCapabilityView {
+  capability_id: string;
+  node_type: string;
+  mode_type: string;
+  scene: string;
+  schema_version: number;
+  model_revision: number;
+  input_schema: Capability['input_schema'];
+  parameters: Capability['parameters'];
+  features: Capability['features'];
+}
+interface ModelView {
+  model_code: string;
+  model_name: string;
+  model_type: string;
+  capabilities: ModelCapabilityView[];
+}
+interface GenerationTaskProgress extends QueryResultRow {
+  task_id: string;
+  status: string;
+  progress: number;
+  result: unknown;
+  error_message: string | null;
+  node_id: number;
+}
 type TaskInput = z.infer<typeof taskFields>;
 interface NormalizedTask {
   drama_id: number;
@@ -110,6 +135,7 @@ interface NormalizedTask {
   provider: string;
 }
 
+/** 递归生成键顺序稳定的 JSON 表示，用于请求语义比较。 */
 function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value !== null && typeof value === 'object') {
@@ -120,27 +146,27 @@ function stable(value: unknown): string {
   }
   return JSON.stringify(value);
 }
+/** 为 JSON 数据生成忽略对象键顺序的 SHA-256 摘要。 */
 export function semanticHash(value: unknown): string {
   return createHash('sha256').update(stable(value)).digest('hex');
 }
 
 @Injectable()
 export class GenerationService {
+  /** 注入数据库和开发模拟配置，处理模型能力与任务生命周期。 */
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  async models() {
+  /** 按模型聚合当前启用的生成能力；关闭模拟模式时返回空列表。 */
+  async models(): Promise<{ list: ModelView[] }> {
     if (!this.config.devMockExternals) return { list: [] };
     const result = await this.db.query<
       Capability & { model_name: string; model_type: string }
     >(`SELECT m.model_name,m.model_type,c.*,m.provider FROM model_capabilities c
       JOIN model_catalog m ON m.model_code=c.model_code WHERE m.active AND c.active ORDER BY m.model_code,c.mode_type`);
-    const models = new Map<
-      string,
-      { model_code: string; model_name: string; model_type: string; capabilities: unknown[] }
-    >();
+    const models = new Map<string, ModelView>();
     for (const row of result.rows) {
       let model = models.get(row.model_code);
       if (!model) {
@@ -167,6 +193,7 @@ export class GenerationService {
     return { list: [...models.values()] };
   }
 
+  /** 校验节点、模型能力、输入参数和媒体归属并计算任务费用。 */
   private async normalize(
     client: QueryExecutor,
     actor: Identity,
@@ -177,7 +204,8 @@ export class GenerationService {
     if (!nodeId) throw new AppError(400, 'node_id 必填');
     const target = await client.query<{ canvas_id: number }>(
       `SELECT n.canvas_id FROM nodes n JOIN canvases c ON c.id=n.canvas_id
-      JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL WHERE n.id=$1 AND c.account_id=$2 AND d.id=$3`,
+      JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL WHERE n.id=$1 AND c.account_id=$2 AND d.id=$3
+      FOR SHARE OF d`,
       [nodeId, actor.accountId, dramaId],
     );
     const canvasId = target.rows[0]?.canvas_id;
@@ -277,12 +305,14 @@ export class GenerationService {
     };
   }
 
-  async quote(actor: Identity, body: unknown) {
+  /** 根据已校验的生成输入计算本次请求所需积分。 */
+  async quote(actor: Identity, body: unknown): Promise<{ credit: number; capability_id: string }> {
     const input = parse(singleSchema, body);
     const normalized = await this.normalize(this.db, actor, input.drama_id, input);
     return { credit: normalized.price_credits, capability_id: normalized.capability_id };
   }
 
+  /** 在单一事务中处理幂等键、扣费、任务记录和 outbox 事件。 */
   private async accept(
     actor: Identity,
     endpoint: string,
@@ -383,7 +413,8 @@ export class GenerationService {
     });
   }
 
-  async create(actor: Identity, body: unknown) {
+  /** 校验并受理单个生成任务。 */
+  async create(actor: Identity, body: unknown): Promise<unknown> {
     const input = parse(singleSchema, body);
     return this.accept(
       actor,
@@ -395,7 +426,8 @@ export class GenerationService {
     );
   }
 
-  async batchCreate(actor: Identity, body: unknown) {
+  /** 合并批次级节点与画布信息后受理多个生成任务。 */
+  async batchCreate(actor: Identity, body: unknown): Promise<unknown> {
     const input = parse(batchSchema, body);
     const tasks = input.tasks.map((task) => ({
       ...task,
@@ -412,26 +444,26 @@ export class GenerationService {
     );
   }
 
-  async progress(actor: Identity, body: unknown) {
+  /** 返回当前账号指定任务的执行进度与结果。 */
+  async progress(actor: Identity, body: unknown): Promise<{ list: GenerationTaskProgress[] }> {
     const input = parse(idsSchema, body);
-    const result = await this.db.query<{
-      task_id: string;
-      status: string;
-      progress: number;
-      result: unknown;
-      error_message: string | null;
-      node_id: number;
-    }>(
+    const result = await this.db.query<GenerationTaskProgress>(
       `SELECT task_id,status,progress,result,error_message,node_id
       FROM generation_tasks WHERE task_id=ANY($1::uuid[]) AND account_id=$2`,
       [input.task_ids, actor.accountId],
     );
     if (result.rowCount !== new Set(input.task_ids).size) throw new AppError(404, '任务不存在');
     const map = new Map(result.rows.map((row) => [row.task_id, row]));
-    return { list: input.task_ids.map((taskId) => map.get(taskId)) };
+    const list = input.task_ids.map((taskId) => {
+      const task = map.get(taskId);
+      if (!task) throw new AppError(404, '任务不存在');
+      return task;
+    });
+    return { list };
   }
 
-  async cancel(actor: Identity, taskId: string) {
+  /** 取消尚未运行的任务，并在事务中返还已扣积分。 */
+  async cancel(actor: Identity, taskId: string): Promise<{ task_id: string; status: string }> {
     return this.db.transaction(async (client) => {
       const result = await client.query<{ status: string; price_credits: number }>(
         `SELECT status,price_credits FROM generation_tasks
@@ -451,6 +483,7 @@ export class GenerationService {
     });
   }
 
+  /** 通过账本唯一来源键幂等返还任务积分。 */
   private async refund(
     client: PoolClient,
     accountId: number,
@@ -480,6 +513,7 @@ export class GenerationService {
     );
   }
 
+  /** 执行开发模拟任务，并仅在任务仍运行时写入结果或退款。 */
   async runMockTask(taskId: string): Promise<void> {
     if (!this.config.devMockExternals) throw new Error('Mock worker disabled');
     const task = await this.db.transaction(async (client) => {
@@ -545,31 +579,5 @@ export class GenerationService {
       });
       throw error;
     }
-  }
-}
-
-@Controller('api')
-@UseGuards(AuthGuard)
-export class GenerationController {
-  constructor(@Inject(GenerationService) private readonly service: GenerationService) {}
-
-  @Get('node/models') models() {
-    return this.service.models();
-  }
-  @Post('node/credit') quote(@Req() req: AuthedRequest, @Body() body: unknown) {
-    return this.service.quote(req.auth, body);
-  }
-  @Post('task/generation/create') create(@Req() req: AuthedRequest, @Body() body: unknown) {
-    return this.service.create(req.auth, body);
-  }
-  @Post('task/generation/batch_create') batch(@Req() req: AuthedRequest, @Body() body: unknown) {
-    return this.service.batchCreate(req.auth, body);
-  }
-  @Post('task/generation/progress') progress(@Req() req: AuthedRequest, @Body() body: unknown) {
-    return this.service.progress(req.auth, body);
-  }
-  @Post('task/generation/cancel') cancel(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(z.object({ task_id: z.string().uuid() }), body);
-    return this.service.cancel(req.auth, input.task_id);
   }
 }

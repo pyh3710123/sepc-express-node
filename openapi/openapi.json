@@ -192,7 +192,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthTokens"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
@@ -291,12 +310,33 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SmsSendResult"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
                   "message": "ok",
-                  "data": {}
+                  "data": {
+                    "mock": true
+                  }
                 }
               }
             }
@@ -351,6 +391,16 @@
               }
             }
           },
+          "429": {
+            "description": "发送过于频繁或达到每日上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "description": "依赖不可用",
             "content": {
@@ -379,7 +429,7 @@
         "tags": [
           "Auth"
         ],
-        "summary": "短信登录",
+        "summary": "短信登录；首次使用手机号自动注册个人账号",
         "security": [],
         "responses": {
           "200": {
@@ -387,12 +437,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthTokens"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
                   "message": "ok",
-                  "data": {}
+                  "data": {
+                    "access_token": "<jwt>",
+                    "refresh_token": "<opaque>"
+                  }
                 }
               }
             }
@@ -478,6 +550,16 @@
         "summary": "微信登录（待接入）",
         "security": [],
         "responses": {
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "description": "外部服务未配置或功能待接入",
             "content": {
@@ -618,12 +700,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthTokens"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
                   "message": "ok",
-                  "data": {}
+                  "data": {
+                    "access_token": "<jwt>",
+                    "refresh_token": "<opaque>"
+                  }
                 }
               }
             }
@@ -1184,7 +1288,7 @@
         "tags": [
           "Home"
         ],
-        "summary": "首页基础配置（待前端契约联调）",
+        "summary": "首页基础配置（字段仍待前端契约联调）",
         "security": [
           {
             "BearerAuth": []
@@ -1196,12 +1300,141 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/HomeInit"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
                   "message": "ok",
-                  "data": {}
+                  "data": {
+                    "model_enabled": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/home/carousel": {
+      "get": {
+        "tags": [
+          "Home"
+        ],
+        "summary": "当前已发布且在展示期内的首页轮播",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/HomeCarousel"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "list": [],
+                    "total": 0
+                  }
                 }
               }
             }
@@ -1286,7 +1519,1179 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DramaList"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "list": [],
+                    "total": 0,
+                    "drama_total": 0,
+                    "group_total": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "parent_id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "all",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "2"
+              ]
+            }
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "创建短剧并返回首张画布，或创建项目组",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/CreatedDrama"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "drama_id": 1,
+                    "canvas_id": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDrama"
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "更新当前账号未删除项目的标题或已登记图片封面",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DramaUpdateResult"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "drama_id": 1,
+                    "title": "新标题",
+                    "cover_image": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDrama"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "批量将项目及子项目移入回收站",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DestroyedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "deleted_ids": [
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DramaIds"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drama/subset": {
+      "get": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "平铺当前账号全部短剧，供团队权限选择器使用",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DramaSubset"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "list": [],
+                    "total": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ]
+      }
+    },
+    "/api/drama/move": {
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "移出项目组或移动单个短剧至当前账号项目组",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MovedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "moved_ids": [
+                      1
+                    ],
+                    "parent_id": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveDrama"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drama/batchMove": {
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "批量移出或移动短剧项目",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MovedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "moved_ids": [
+                      1,
+                      2
+                    ],
+                    "parent_id": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchMoveDrama"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drama/merge": {
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "将同一层级的短剧合并到新项目组",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/MergedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "drama_id": 3,
+                    "moved_ids": [
+                      1,
+                      2
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeDrama"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/drama/untie": {
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "解除项目组并保留组内项目",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/UntiedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "untied_ids": [
+                      3
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DramaIds"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/recycle": {
+      "get": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "分页查询当前账号回收站",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RecycledDramaList"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
@@ -1379,14 +2784,34 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "drama",
+                "script",
+                ""
+              ]
+            }
           }
         ]
       },
-      "post": {
+      "delete": {
         "tags": [
           "Canvas"
         ],
-        "summary": "创建短剧",
+        "summary": "批量永久删除回收站项目及子项目；进行中任务存在时返回 409",
         "security": [
           {
             "BearerAuth": []
@@ -1398,13 +2823,34 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope"
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DestroyedDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
                 },
                 "example": {
                   "code": 200,
                   "message": "ok",
                   "data": {
-                    "drama_id": 1
+                    "deleted_ids": [
+                      1
+                    ]
                   }
                 }
               }
@@ -1476,7 +2922,130 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDrama"
+                "$ref": "#/components/schemas/DramaIds"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/recycle/restore": {
+      "post": {
+        "tags": [
+          "Canvas"
+        ],
+        "summary": "批量恢复当前账号已删除项目及同批删除的子项目",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "const": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RestoredDramas"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "additionalProperties": false
+                },
+                "example": {
+                  "code": 200,
+                  "message": "ok",
+                  "data": {
+                    "restored_ids": [
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "凭证无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "权限不足",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "资源不存在或不属于当前账号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "版本或幂等冲突；画布冲突包含 data.current_version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "依赖不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DramaIds"
               }
             }
           }
@@ -2610,6 +4179,16 @@
           }
         ],
         "responses": {
+          "400": {
+            "description": "请求参数无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "description": "外部服务未配置或功能待接入",
             "content": {
@@ -3534,6 +5113,22 @@
         ],
         "additionalProperties": false
       },
+      "AuthTokens": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "additionalProperties": false
+      },
       "SmsSend": {
         "type": "object",
         "properties": {
@@ -3570,6 +5165,19 @@
         ],
         "additionalProperties": false
       },
+      "SmsSendResult": {
+        "type": "object",
+        "properties": {
+          "mock": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "mock"
+        ],
+        "additionalProperties": false
+      },
       "WechatLogin": {
         "type": "object",
         "properties": {
@@ -3579,6 +5187,67 @@
         },
         "required": [
           "code"
+        ],
+        "additionalProperties": false
+      },
+      "HomeInit": {
+        "type": "object",
+        "properties": {
+          "model_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "model_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "HomeCarouselItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "link_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "image_url",
+          "link_url"
+        ],
+        "additionalProperties": false
+      },
+      "HomeCarousel": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HomeCarouselItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "list",
+          "total"
         ],
         "additionalProperties": false
       },
@@ -3598,12 +5267,541 @@
       "CreateDrama": {
         "type": "object",
         "properties": {
+          "parent_id": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "is_group": {
+            "type": "boolean",
+            "default": false
+          },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "CreatedDrama": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "canvas_id": {
+            "type": "integer",
+            "minimum": 1
           }
         },
         "required": [
-          "title"
+          "drama_id"
+        ],
+        "additionalProperties": false
+      },
+      "DramaIds": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "MoveDrama": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "remove"
+              },
+              "drama_id": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "action",
+              "drama_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "transfer"
+              },
+              "drama_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "target_id": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "action",
+              "drama_id",
+              "target_id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "BatchMoveDrama": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "remove"
+              },
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "action",
+              "ids"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "const": "transfer"
+              },
+              "ids": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "uniqueItems": true
+              },
+              "target_id": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "action",
+              "ids",
+              "target_id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "MergeDrama": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "MovedDramas": {
+        "type": "object",
+        "properties": {
+          "moved_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "moved_ids",
+          "parent_id"
+        ],
+        "additionalProperties": false
+      },
+      "MergedDramas": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "moved_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "drama_id",
+          "moved_ids"
+        ],
+        "additionalProperties": false
+      },
+      "UntiedDramas": {
+        "type": "object",
+        "properties": {
+          "untied_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "untied_ids"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateDrama": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "cover_image": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        },
+        "required": [
+          "drama_id"
+        ],
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "title"
+            ]
+          },
+          {
+            "required": [
+              "cover_image"
+            ]
+          }
+        ]
+      },
+      "DramaUpdateResult": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "cover_image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "drama_id",
+          "title",
+          "cover_image"
+        ],
+        "additionalProperties": false
+      },
+      "RestoredDramas": {
+        "type": "object",
+        "properties": {
+          "restored_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "restored_ids"
+        ],
+        "additionalProperties": false
+      },
+      "DestroyedDramas": {
+        "type": "object",
+        "properties": {
+          "deleted_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "required": [
+          "deleted_ids"
+        ],
+        "additionalProperties": false
+      },
+      "DramaSummary": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "is_group": {
+            "type": "boolean"
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "canvas_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "cover_image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "child_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "create_time": {
+            "type": "string"
+          },
+          "permission_code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "drama_id",
+          "title",
+          "type",
+          "is_group",
+          "parent_id",
+          "canvas_id",
+          "cover_image",
+          "child_count",
+          "create_time",
+          "permission_code",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "RecycledDrama": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "project_type": {
+            "type": "string",
+            "const": "drama"
+          },
+          "project_create_time": {
+            "type": "string"
+          },
+          "project_delete_time": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "drama_id",
+          "project_name",
+          "project_type",
+          "project_create_time",
+          "project_delete_time",
+          "deleted_at"
+        ],
+        "additionalProperties": false
+      },
+      "DramaList": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DramaSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "drama_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "group_total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "list",
+          "total",
+          "drama_total",
+          "group_total"
+        ],
+        "additionalProperties": false
+      },
+      "DramaSubsetItem": {
+        "type": "object",
+        "properties": {
+          "drama_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "parent_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "canvas_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "drama_id",
+          "title",
+          "parent_id",
+          "canvas_id"
+        ],
+        "additionalProperties": false
+      },
+      "DramaSubset": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DramaSubsetItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "list",
+          "total"
+        ],
+        "additionalProperties": false
+      },
+      "RecycledDramaList": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecycledDrama"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "list",
+          "total"
         ],
         "additionalProperties": false
       },

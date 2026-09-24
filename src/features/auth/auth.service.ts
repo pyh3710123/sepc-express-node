@@ -1,24 +1,11 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import {
-  Controller,
-  Get,
-  Inject,
-  Injectable,
-  Post,
-  Query,
-  Body,
-  Headers,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
 import type { PoolClient } from 'pg';
-import { z } from 'zod';
-import { AppError, parse } from './common';
-import { APP_CONFIG, type AppConfig } from './config';
-import { Database, type QueryExecutor } from './database';
+import { AppError } from '../../common';
+import { APP_CONFIG, type AppConfig } from '../../config';
+import { Database, type QueryExecutor } from '../../database';
 import { hashPassword, verifyPassword } from './password';
 import { sessionEvents } from './session-events';
 
@@ -31,24 +18,20 @@ export interface Identity {
 }
 export type AuthedRequest = FastifyRequest & { auth: Identity };
 
-const idSchema = z.coerce.number().int().positive();
-const bearer = (header: string | undefined): string => {
-  const match = /^Bearer (\S+)$/i.exec(header ?? '');
-  if (!match) throw new AppError(401, '未登录或登录已失效');
-  return match[1];
-};
-
 @Injectable()
 export class AuthService {
+  /** 注入数据库与令牌配置，集中处理会话和账号认证逻辑。 */
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** 使用服务端密钥摘要刷新令牌，避免在数据库中保存原始凭证。 */
   private refreshHash(token: string): string {
     return createHmac('sha256', this.config.refreshTokenSecret).update(token).digest('hex');
   }
 
+  /** 根据当前会话签发短期访问令牌。 */
   private accessToken(identity: Omit<Identity, 'role'>): string {
     return jwt.sign(
       {
@@ -62,10 +45,12 @@ export class AuthService {
     );
   }
 
+  /** 生成高熵的不透明刷新令牌。 */
   private newRefreshToken(): string {
     return randomBytes(48).toString('base64url');
   }
 
+  /** 验证访问令牌并从有效会话重新读取账号成员身份。 */
   async authenticate(token: string): Promise<Identity> {
     let payload: jwt.JwtPayload;
     try {
@@ -104,6 +89,7 @@ export class AuthService {
     };
   }
 
+  /** 校验账号密码，并为用户选择的默认个人账号建立会话。 */
   async loginPassword(
     username: string,
     password: string,
@@ -124,6 +110,7 @@ export class AuthService {
     return this.createSession(user.id, membership.rows[0].account_id);
   }
 
+  /** 在指定连接中持久化刷新会话，并返回一对访问和刷新令牌。 */
   private async createSession(
     userId: number,
     accountId: number,
@@ -143,6 +130,7 @@ export class AuthService {
     };
   }
 
+  /** 原子轮换刷新令牌并使旧访问令牌失效。 */
   async refresh(rawToken: string): Promise<{ access_token: string; refresh_token: string }> {
     const result = await this.db.transaction(async (client) => {
       const result = await client.query<{
@@ -179,6 +167,7 @@ export class AuthService {
     return { access_token: result.access_token, refresh_token: result.refresh_token };
   }
 
+  /** 验证成员关系后切换当前会话账号并提升会话版本。 */
   async changeAccount(
     identity: Identity,
     accountId: number,
@@ -215,34 +204,52 @@ export class AuthService {
     return result;
   }
 
+  /** 以手机号和验证码生成服务端可验证的摘要。 */
   private smsHash(mobile: string, code: string): string {
     return createHmac('sha256', this.config.refreshTokenSecret)
       .update(`${mobile}:${code}`)
       .digest('hex');
   }
 
+  /** 在开发模拟模式下创建验证码，并以行锁和日限额限制发送频率。 */
   async sendSms(mobile: string, sendType: string): Promise<{ mock: boolean }> {
-    if (!this.config.devMockExternals || !this.config.devSmsCode)
-      throw new AppError(503, '短信服务未配置');
-    const recent = await this.db.query(
-      "SELECT 1 FROM sms_challenges WHERE mobile=$1 AND send_type=$2 AND created_at>now()-interval '60 seconds' LIMIT 1",
-      [mobile, sendType],
-    );
-    if (recent.rowCount) throw new AppError(429, '发送过于频繁');
-    await this.db.query(
-      `INSERT INTO sms_challenges(mobile,send_type,code_hash,expires_at)
-      VALUES ($1,$2,$3,now()+interval '5 minutes')`,
-      [mobile, sendType, this.smsHash(mobile, this.config.devSmsCode)],
-    );
+    const code = this.config.devSmsCode;
+    if (!this.config.devMockExternals || !code) throw new AppError(503, '短信服务未配置');
+    await this.db.transaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [mobile]);
+      const recent = await client.query(
+        "SELECT 1 FROM sms_challenges WHERE mobile=$1 AND created_at>now()-interval '60 seconds' LIMIT 1",
+        [mobile],
+      );
+      if (recent.rowCount) throw new AppError(429, '发送过于频繁');
+      const today = await client.query<{ total: number }>(
+        "SELECT count(*)::int AS total FROM sms_challenges WHERE mobile=$1 AND created_at>now()-interval '1 day'",
+        [mobile],
+      );
+      if (today.rows[0].total >= 10) throw new AppError(429, '今日验证码发送次数已达上限');
+      await client.query(
+        `UPDATE sms_challenges SET consumed_at=now()
+         WHERE mobile=$1 AND send_type=$2 AND consumed_at IS NULL`,
+        [mobile, sendType],
+      );
+      await client.query(
+        `INSERT INTO sms_challenges(mobile,send_type,code_hash,expires_at)
+         VALUES ($1,$2,$3,now()+interval '5 minutes')`,
+        [mobile, sendType, this.smsHash(mobile, code)],
+      );
+    });
     return { mock: true };
   }
 
+  /** 校验一次性验证码；首次登录时在同一事务中创建用户及个人账号。 */
   async loginSms(
     mobile: string,
     captcha: string,
   ): Promise<{ access_token: string; refresh_token: string }> {
-    if (!this.config.devMockExternals) throw new AppError(503, '短信服务未配置');
+    if (!this.config.devMockExternals || !this.config.devSmsCode)
+      throw new AppError(503, '短信服务未配置');
     const outcome = await this.db.transaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [mobile]);
       const result = await client.query<{ id: number; code_hash: string; attempts: number }>(
         `SELECT id,code_hash,attempts FROM sms_challenges
         WHERE mobile=$1 AND send_type='login_register' AND consumed_at IS NULL AND expires_at>now()
@@ -268,7 +275,7 @@ export class AuthService {
           VALUES ($1,$2,$3,$4) RETURNING id`,
             [
               randomUUID(),
-              `mobile_${mobile}`,
+              `mobile_${randomUUID()}`,
               mobile,
               await hashPassword(randomBytes(32).toString('hex')),
             ],
@@ -293,19 +300,23 @@ export class AuthService {
           [user.id],
         )
       ).rows[0];
+      if (!account) throw new AppError(403, '账号不可用');
       return this.createSession(user.id, account.account_id, client);
     });
     if (!outcome) throw new AppError(401, '验证码无效');
     return outcome;
   }
 
+  /** 校验绑定验证码并确保手机号不会同时关联到其他用户。 */
   async bindPhone(
     identity: Identity,
     mobile: string,
     captcha: string,
   ): Promise<{ mobile: string }> {
-    if (!this.config.devMockExternals) throw new AppError(503, '短信服务未配置');
+    if (!this.config.devMockExternals || !this.config.devSmsCode)
+      throw new AppError(503, '短信服务未配置');
     const valid = await this.db.transaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [mobile]);
       const result = await client.query<{ id: number; code_hash: string; attempts: number }>(
         `SELECT id,code_hash,attempts FROM sms_challenges WHERE mobile=$1 AND send_type='bind_phone'
           AND consumed_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1 FOR UPDATE`,
@@ -333,163 +344,5 @@ export class AuthService {
     });
     if (!valid) throw new AppError(401, '验证码无效');
     return { mobile };
-  }
-}
-
-@Injectable()
-export class AuthGuard implements CanActivate {
-  constructor(@Inject(AuthService) private readonly auth: AuthService) {}
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthedRequest>();
-    request.auth = await this.auth.authenticate(bearer(request.headers.authorization));
-    return true;
-  }
-}
-
-@Controller('api')
-export class AuthController {
-  constructor(
-    @Inject(AuthService) private readonly auth: AuthService,
-    @Inject(Database) private readonly db: Database,
-  ) {}
-
-  @Post('login/password')
-  loginPassword(@Body() body: unknown) {
-    const input = parse(
-      z.object({ username: z.string().min(1).max(255), password: z.string().min(1).max(255) }),
-      body,
-    );
-    return this.auth.loginPassword(input.username, input.password);
-  }
-
-  @Post('sms/send')
-  sendSms(@Body() body: unknown) {
-    const input = parse(
-      z.object({
-        mobile: z.string().regex(/^1\d{10}$/),
-        sendType: z.enum(['login_register', 'bind_phone']),
-      }),
-      body,
-    );
-    return this.auth.sendSms(input.mobile, input.sendType);
-  }
-
-  @Post('login/sms')
-  loginSms(@Body() body: unknown) {
-    const input = parse(
-      z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().regex(/^\d{6}$/) }),
-      body,
-    );
-    return this.auth.loginSms(input.mobile, input.captcha);
-  }
-
-  @Post('login/wechat')
-  loginWechat() {
-    throw new AppError(503, '微信登录未配置');
-  }
-
-  @Post('user/bindPhone')
-  @UseGuards(AuthGuard)
-  bindPhone(@Req() request: AuthedRequest, @Body() body: unknown) {
-    const input = parse(
-      z.object({ mobile: z.string().regex(/^1\d{10}$/), captcha: z.string().regex(/^\d{6}$/) }),
-      body,
-    );
-    return this.auth.bindPhone(request.auth, input.mobile, input.captcha);
-  }
-
-  @Post('auth/refresh')
-  refresh(@Headers('authorization') authorization?: string) {
-    return this.auth.refresh(bearer(authorization));
-  }
-
-  @Get('user/info')
-  @UseGuards(AuthGuard)
-  async info(@Req() request: AuthedRequest) {
-    const result = await this.db.query<{
-      uuid: string;
-      avatar: string | null;
-      account_name: string;
-      account_type: string;
-    }>(
-      `SELECT u.uuid,u.avatar,a.name AS account_name,a.type AS account_type
-      FROM users u JOIN accounts a ON a.id=$2 WHERE u.id=$1`,
-      [request.auth.userId, request.auth.accountId],
-    );
-    const row = result.rows[0];
-    return {
-      account_id: request.auth.accountId,
-      account_name: row.account_name,
-      account_type: row.account_type,
-      avatar: row.avatar,
-      is_vip: false,
-      vip_level: 0,
-      plan_expire: null,
-      plan_title: '',
-      role_name: request.auth.role,
-      uuid: row.uuid,
-    };
-  }
-
-  @Get('account')
-  @UseGuards(AuthGuard)
-  async accounts(@Req() request: AuthedRequest) {
-    const result = await this.db.query(
-      `SELECT a.id AS account_id,a.name AS account_name,a.type AS account_type,m.role AS role_name
-      FROM accounts a JOIN account_members m ON m.account_id=a.id WHERE m.user_id=$1 AND m.status='active' ORDER BY a.id`,
-      [request.auth.userId],
-    );
-    return { list: result.rows };
-  }
-
-  @Post('account/change')
-  @UseGuards(AuthGuard)
-  changeAccount(@Req() request: AuthedRequest, @Body() body: unknown) {
-    const input = parse(z.object({ account_id: idSchema }), body);
-    return this.auth.changeAccount(request.auth, input.account_id);
-  }
-
-  @Get('credit')
-  @UseGuards(AuthGuard)
-  async credit(@Req() request: AuthedRequest) {
-    const result = await this.db.query<{ balance: number }>(
-      'SELECT balance FROM credit_wallets WHERE account_id=$1',
-      [request.auth.accountId],
-    );
-    const balance = result.rows[0]?.balance ?? 0;
-    return { total_balance: balance, use_credit: balance, credit_quota: balance };
-  }
-
-  @Get('credit/bill')
-  @UseGuards(AuthGuard)
-  async bills(
-    @Req() request: AuthedRequest,
-    @Query('page') page: unknown,
-    @Query('limit') limit: unknown,
-  ) {
-    const pagination = parse(
-      z.object({
-        page: z.coerce.number().int().min(1).default(1),
-        limit: z.coerce.number().int().min(1).max(100).default(20),
-      }),
-      { page, limit },
-    );
-    const [rows, count] = await Promise.all([
-      this.db.query(
-        'SELECT id,source_key,amount,balance_after,created_at FROM credit_ledger WHERE account_id=$1 ORDER BY id DESC LIMIT $2 OFFSET $3',
-        [request.auth.accountId, pagination.limit, (pagination.page - 1) * pagination.limit],
-      ),
-      this.db.query<{ total: number }>(
-        'SELECT count(*)::int AS total FROM credit_ledger WHERE account_id=$1',
-        [request.auth.accountId],
-      ),
-    ]);
-    return { list: rows.rows, total: count.rows[0].total };
-  }
-
-  @Get('home/init')
-  @UseGuards(AuthGuard)
-  homeInit() {
-    return { model_enabled: false };
   }
 }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { loadConfig } from '../src/config';
 
+/** 按文件名顺序执行尚未登记的数据库迁移，并逐个迁移提交事务。 */
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: loadConfig().databaseUrl });
   try {

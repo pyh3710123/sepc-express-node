@@ -11,6 +11,7 @@ import { map } from 'rxjs';
 import { ZodError, type ZodType } from 'zod';
 
 export class AppError extends Error {
+  /** 创建可直接映射为 HTTP 状态码和统一响应体的业务错误。 */
   constructor(
     public readonly status: number,
     message: string,
@@ -21,6 +22,7 @@ export class AppError extends Error {
   }
 }
 
+/** 校验外部输入，并将不符合接口约束的值转换为统一参数错误。 */
 export function parse<T>(schema: ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success)
@@ -32,12 +34,14 @@ export function parse<T>(schema: ZodType<T>, value: unknown): T {
   return result.data;
 }
 
+/** 为成功响应封装统一的接口外层结构。 */
 export function ok<T>(data: T): { code: 200; message: 'ok'; data: T } {
   return { code: 200, message: 'ok', data };
 }
 
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
+  /** 将业务、参数和框架异常转换为统一 JSON 错误响应。 */
   catch(error: unknown, host: ArgumentsHost): void {
     const reply = host.switchToHttp().getResponse<FastifyReply>();
     if (error instanceof AppError) {
@@ -79,6 +83,7 @@ export class ApiErrorFilter implements ExceptionFilter {
 
 @Injectable()
 export class ResponseInterceptor implements NestInterceptor {
+  /** 为普通接口结果补齐统一成功响应，同时保留健康检查和文档原始响应。 */
   intercept(
     context: ExecutionContext,
     next: { handle: () => Observable<unknown> },

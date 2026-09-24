@@ -1,85 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Injectable,
-  Param,
-  Post,
-  Put,
-  Query,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { QueryResultRow } from 'pg';
-import { z } from 'zod';
-import { AppError, parse } from './common';
-import { AuthGuard, type AuthedRequest, type Identity } from './auth';
-import { APP_CONFIG, type AppConfig } from './config';
-import { Database, type QueryExecutor } from './database';
-import { Inject } from '@nestjs/common';
-
-const id = z.coerce.number().int().positive();
-const uuid = z
-  .string()
-  .min(1)
-  .max(128)
-  .regex(/^[\w.-]+$/);
-const position = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
-const size = z
-  .object({ width: z.number().positive().max(10000), height: z.number().positive().max(10000) })
-  .strict();
-const extraData = z
-  .record(z.string(), z.unknown())
-  .refine((value) => JSON.stringify(value).length <= 16384, 'extra_data is too large');
-const nodeFields = z
-  .object({
-    uuid,
-    type: z.string().min(1).max(50),
-    node_name: z.string().max(200),
-    position,
-    size: size.optional(),
-    parent_uuid: uuid.nullable().optional(),
-    z_index: z.number().int().min(-100000).max(100000).optional(),
-    content: z.string().max(100000).nullable().optional(),
-    extra_data: extraData.optional(),
-  })
-  .strict();
-const nodeCreate = nodeFields;
-const nodeUpdate = nodeFields.partial().extend({ id, uuid: uuid.optional() }).strict();
-const edgeFields = z
-  .object({
-    uuid,
-    source_uuid: uuid,
-    target_uuid: uuid,
-    source_anchor: z.string().max(100).nullable().optional(),
-    target_anchor: z.string().max(100).nullable().optional(),
-    type: z.string().max(50).nullable().optional(),
-    extra_data: extraData.optional(),
-  })
-  .strict();
-const edgeCreate = edgeFields;
-const edgeUpdate = edgeFields.partial().extend({ id, uuid: uuid.optional() }).strict();
-const operations = <T extends z.ZodTypeAny, U extends z.ZodTypeAny>(create: T, update: U) =>
-  z
-    .object({
-      create: z.array(create).default([]),
-      update: z.array(update).default([]),
-      delete: z.array(z.object({ id }).strict()).default([]),
-    })
-    .strict()
-    .default({ create: [], update: [], delete: [] });
-export const batchSchema = z
-  .object({
-    drama_id: id,
-    canvas_id: id,
-    expected_version: z.number().int().nonnegative(),
-    nodes: operations(nodeCreate, nodeUpdate),
-    connections: operations(edgeCreate, edgeUpdate),
-  })
-  .strict();
-export type BatchInput = z.infer<typeof batchSchema>;
+import { AppError } from '../../common';
+import type { Identity } from '../auth';
+import { APP_CONFIG, type AppConfig } from '../../config';
+import { Database, type QueryExecutor } from '../../database';
+import type { BatchInput } from './canvas.schemas';
 
 interface NodeRow extends QueryResultRow {
   id: number;
@@ -112,8 +38,59 @@ interface CanvasRow extends QueryResultRow {
   version: number;
   schema_version: number;
   updated_at: Date;
+  drama_title: string;
+  cover_image: string | null;
+  drama_created_at: Date;
 }
 
+interface CanvasOption extends QueryResultRow {
+  canvas_id: number;
+  canvas_title: string;
+}
+
+interface CanvasDetail {
+  canvas_id: number;
+  drama_id: number;
+  drama_title: string;
+  cover_image: string | null;
+  create_time: string;
+  canvas_title: string;
+  canvas_options: CanvasOption[];
+  version: number;
+  schema_version: number;
+  updated_at: number;
+  nodes: ReturnType<typeof nodeDto>[];
+  connections: ReturnType<typeof edgeDto>[];
+  settings: { x: number; y: number; window_zoom_rate: number };
+}
+
+interface BatchNodeResult {
+  uuid: string;
+  node_id: number;
+}
+
+interface BatchConnectionResult {
+  uuid: string;
+  connection_id: number;
+  source_uuid: string;
+  target_uuid: string;
+  source_anchor: string | null;
+  target_anchor: string | null;
+}
+
+interface CanvasBatchResult {
+  version: number;
+  updated_at: number;
+  nodes: { create: BatchNodeResult[]; update: BatchNodeResult[] };
+  connections: {
+    create: BatchConnectionResult[];
+    update: BatchConnectionResult[];
+  };
+  deleted_node_ids: number[];
+  deleted_connection_ids: number[];
+}
+
+/** 将数据库节点行转换为画布接口使用的节点结构。 */
 function nodeDto(row: NodeRow) {
   return {
     node_id: row.id,
@@ -128,6 +105,7 @@ function nodeDto(row: NodeRow) {
     extra_data: row.extra_data,
   };
 }
+/** 将数据库连线行转换为画布接口使用的连线结构。 */
 function edgeDto(row: EdgeRow) {
   return {
     connection_id: row.id,
@@ -143,11 +121,13 @@ function edgeDto(row: EdgeRow) {
 
 @Injectable()
 export class CanvasService {
+  /** 注入数据库和批量修改限额，处理画布与节点数据。 */
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
+  /** 按账号校验画布归属和操作权限，避免跨账号访问资源。 */
   private async canvas(
     client: QueryExecutor,
     canvasId: number,
@@ -155,8 +135,18 @@ export class CanvasService {
     action: 'read' | 'edit' | 'delete',
     lock = false,
   ): Promise<CanvasRow> {
+    if (lock) {
+      // 项目回收站操作先锁项目；图事务按相同顺序取锁，避免删除与批量保存互相等待。
+      const project = await client.query(
+        `SELECT 1 FROM canvases c JOIN dramas d ON d.id=c.drama_id
+         WHERE c.id=$1 AND c.account_id=$2 AND d.deleted_at IS NULL FOR SHARE OF d`,
+        [canvasId, actor.accountId],
+      );
+      if (!project.rowCount) throw new AppError(404, '画布不存在');
+    }
     const result = await client.query<CanvasRow>(
-      `SELECT c.id,c.drama_id,c.title,c.version,c.schema_version,c.updated_at
+      `SELECT c.id,c.drama_id,c.title,c.version,c.schema_version,c.updated_at,
+              d.title AS drama_title,d.cover_image,d.created_at AS drama_created_at
       FROM canvases c JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL
       WHERE c.id=$1 AND c.account_id=$2 ${lock ? 'FOR UPDATE OF c' : ''}`,
       [canvasId, actor.accountId],
@@ -167,57 +157,46 @@ export class CanvasService {
     return canvas;
   }
 
-  async listDramas(actor: Identity, page: number, limit: number) {
-    const [rows, count] = await Promise.all([
-      this.db.query(
-        'SELECT id AS drama_id,title,type,parent_id,created_at,updated_at FROM dramas WHERE account_id=$1 AND deleted_at IS NULL ORDER BY id DESC LIMIT $2 OFFSET $3',
-        [actor.accountId, limit, (page - 1) * limit],
-      ),
-      this.db.query<{ total: number }>(
-        'SELECT count(*)::int AS total FROM dramas WHERE account_id=$1 AND deleted_at IS NULL',
-        [actor.accountId],
-      ),
-    ]);
-    return { list: rows.rows, total: count.rows[0].total };
+  /** 验证项目归属后创建画布。 */
+  async createCanvas(
+    actor: Identity,
+    dramaId: number,
+    title: string,
+  ): Promise<{ canvas_id: number }> {
+    return this.db.transaction(async (client) => {
+      // 创建期间锁定项目，避免项目刚被删除却返回一个无法读取的新画布。
+      const drama = await client.query(
+        `SELECT 1 FROM dramas WHERE id=$1 AND account_id=$2 AND type<>'group'
+         AND deleted_at IS NULL FOR SHARE`,
+        [dramaId, actor.accountId],
+      );
+      if (!drama.rowCount) throw new AppError(404, '项目不存在');
+      const result = await client.query<{ id: number }>(
+        'INSERT INTO canvases(account_id,drama_id,title) VALUES ($1,$2,$3) RETURNING id',
+        [actor.accountId, dramaId, title],
+      );
+      return { canvas_id: result.rows[0].id };
+    });
   }
 
-  async createDrama(actor: Identity, title: string) {
-    const result = await this.db.query<{ id: number }>(
-      `INSERT INTO dramas(account_id,created_by,title) VALUES ($1,$2,$3) RETURNING id`,
-      [actor.accountId, actor.userId, title],
-    );
-    return { drama_id: result.rows[0].id };
-  }
-
-  async createCanvas(actor: Identity, dramaId: number, title: string) {
+  /** 返回项目下的画布选项。 */
+  async options(actor: Identity, dramaId: number): Promise<{ list: CanvasOption[] }> {
     const drama = await this.db.query(
       'SELECT 1 FROM dramas WHERE id=$1 AND account_id=$2 AND deleted_at IS NULL',
       [dramaId, actor.accountId],
     );
     if (!drama.rowCount) throw new AppError(404, '项目不存在');
-    const result = await this.db.query<{ id: number }>(
-      'INSERT INTO canvases(account_id,drama_id,title) VALUES ($1,$2,$3) RETURNING id',
-      [actor.accountId, dramaId, title],
-    );
-    return { canvas_id: result.rows[0].id };
-  }
-
-  async options(actor: Identity, dramaId: number) {
-    const drama = await this.db.query(
-      'SELECT 1 FROM dramas WHERE id=$1 AND account_id=$2 AND deleted_at IS NULL',
-      [dramaId, actor.accountId],
-    );
-    if (!drama.rowCount) throw new AppError(404, '项目不存在');
-    const result = await this.db.query(
+    const result = await this.db.query<CanvasOption>(
       'SELECT id AS canvas_id,title AS canvas_title FROM canvases WHERE drama_id=$1 AND account_id=$2 ORDER BY id',
       [dramaId, actor.accountId],
     );
     return { list: result.rows };
   }
 
-  async detail(actor: Identity, canvasId: number) {
+  /** 返回画布基础信息、节点、连线、视口和版本号。 */
+  async detail(actor: Identity, canvasId: number): Promise<CanvasDetail> {
     const canvas = await this.canvas(this.db, canvasId, actor, 'read');
-    const [nodes, connections, viewport] = await Promise.all([
+    const [nodes, connections, viewport, canvasOptions] = await Promise.all([
       this.db.query<NodeRow>('SELECT * FROM nodes WHERE canvas_id=$1 ORDER BY id', [canvasId]),
       this.db.query<EdgeRow>('SELECT * FROM connections WHERE canvas_id=$1 ORDER BY id', [
         canvasId,
@@ -226,11 +205,20 @@ export class CanvasService {
         'SELECT x,y,window_zoom_rate FROM canvas_viewports WHERE canvas_id=$1 AND user_id=$2',
         [canvasId, actor.userId],
       ),
+      this.db.query<CanvasOption>(
+        `SELECT id AS canvas_id,title AS canvas_title FROM canvases
+         WHERE drama_id=$1 AND account_id=$2 ORDER BY id`,
+        [canvas.drama_id, actor.accountId],
+      ),
     ]);
     return {
       canvas_id: canvas.id,
       drama_id: canvas.drama_id,
+      drama_title: canvas.drama_title,
+      cover_image: canvas.cover_image,
+      create_time: canvas.drama_created_at.toISOString(),
       canvas_title: canvas.title,
+      canvas_options: canvasOptions.rows,
       version: canvas.version,
       schema_version: canvas.schema_version,
       updated_at: canvas.updated_at.getTime(),
@@ -240,11 +228,12 @@ export class CanvasService {
     };
   }
 
+  /** 校验画布归属后保存当前用户的视口位置和缩放比例。 */
   async viewport(
     actor: Identity,
     canvasId: number,
     input: { x: number; y: number; window_zoom_rate: number },
-  ) {
+  ): Promise<{ canvas_id: number }> {
     await this.canvas(this.db, canvasId, actor, 'read');
     await this.db.query(
       `INSERT INTO canvas_viewports(canvas_id,user_id,x,y,window_zoom_rate) VALUES ($1,$2,$3,$4,$5)
@@ -254,7 +243,12 @@ export class CanvasService {
     return { canvas_id: canvasId };
   }
 
-  async rename(actor: Identity, canvasId: number, title: string) {
+  /** 在确认画布属于当前账号后更新标题。 */
+  async rename(
+    actor: Identity,
+    canvasId: number,
+    title: string,
+  ): Promise<{ canvas_id: number; canvas_title: string }> {
     await this.canvas(this.db, canvasId, actor, 'edit');
     await this.db.query('UPDATE canvases SET title=$1,updated_at=now() WHERE id=$2', [
       title,
@@ -263,7 +257,8 @@ export class CanvasService {
     return { canvas_id: canvasId, canvas_title: title };
   }
 
-  async deleteCanvas(actor: Identity, canvasId: number) {
+  /** 按角色权限删除当前账号的画布。 */
+  async deleteCanvas(actor: Identity, canvasId: number): Promise<{ canvas_id: number }> {
     await this.canvas(this.db, canvasId, actor, 'delete');
     await this.db.query('DELETE FROM canvases WHERE id=$1 AND account_id=$2', [
       canvasId,
@@ -272,7 +267,8 @@ export class CanvasService {
     return { canvas_id: canvasId };
   }
 
-  async copy(actor: Identity, canvasId: number, title: string) {
+  /** 在事务中复制画布及其节点和连线。 */
+  async copy(actor: Identity, canvasId: number, title: string): Promise<{ canvas_id: number }> {
     return this.db.transaction(async (client) => {
       const source = await this.canvas(client, canvasId, actor, 'edit', true);
       const created = await client.query<{ id: number }>(
@@ -294,7 +290,11 @@ export class CanvasService {
     });
   }
 
-  async nodesByIds(actor: Identity, ids: number[]) {
+  /** 批量读取当前账号可访问的节点，并限制单次请求规模。 */
+  async nodesByIds(
+    actor: Identity,
+    ids: number[],
+  ): Promise<{ list: ReturnType<typeof nodeDto>[] }> {
     if (ids.length > 100) throw new AppError(400, '节点数量超限');
     const result = await this.db.query<NodeRow>(
       `SELECT n.* FROM nodes n JOIN canvases c ON c.id=n.canvas_id
@@ -304,7 +304,8 @@ export class CanvasService {
     return { list: result.rows.map(nodeDto) };
   }
 
-  async connection(actor: Identity, connectionId: number) {
+  /** 读取当前账号画布中的指定连线。 */
+  async connection(actor: Identity, connectionId: number): Promise<ReturnType<typeof edgeDto>> {
     const result = await this.db.query<EdgeRow>(
       `SELECT e.* FROM connections e JOIN canvases c ON c.id=e.canvas_id
       JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL WHERE e.id=$1 AND c.account_id=$2`,
@@ -314,7 +315,8 @@ export class CanvasService {
     return edgeDto(result.rows[0]);
   }
 
-  async batch(actor: Identity, input: BatchInput) {
+  /** 原子应用节点和连线变更，并检查版本号以发现并发编辑冲突。 */
+  async batch(actor: Identity, input: BatchInput): Promise<CanvasBatchResult> {
     const nodeCount =
       input.nodes.create.length + input.nodes.update.length + input.nodes.delete.length;
     const edgeCount =
@@ -352,7 +354,7 @@ export class CanvasService {
         if (!key) throw new AppError(400, '删除的节点不属于画布');
         deletedNodeIds.add(item.id);
       }
-      // Deleting a group also deletes all descendants, including their edges.
+      // 删除分组时一并删除所有后代节点及相关连线，避免留下无效引用。
       let expanded = true;
       while (expanded) {
         expanded = false;
@@ -476,7 +478,7 @@ export class CanvasService {
           input.canvas_id,
           [...deletedNodeIds],
         ]);
-      const updatedNodes = [];
+      const updatedNodes: BatchNodeResult[] = [];
       for (const item of input.nodes.update) {
         const row = nodes.get(nodeIds.get(item.id)!)!;
         await client.query(
@@ -499,7 +501,7 @@ export class CanvasService {
         );
         updatedNodes.push({ uuid: row.uuid, node_id: row.id });
       }
-      const createdNodes = [];
+      const createdNodes: BatchNodeResult[] = [];
       for (const item of input.nodes.create) {
         const row = nodes.get(item.uuid)!;
         const result = await client.query<{ id: number }>(
@@ -522,7 +524,7 @@ export class CanvasService {
         );
         createdNodes.push({ uuid: row.uuid, node_id: result.rows[0].id });
       }
-      const updatedEdges = [];
+      const updatedEdges: BatchConnectionResult[] = [];
       for (const item of input.connections.update) {
         const row = edges.get(edgeIds.get(item.id)!)!;
         await client.query(
@@ -548,7 +550,7 @@ export class CanvasService {
           target_anchor: row.target_anchor,
         });
       }
-      const createdEdges = [];
+      const createdEdges: BatchConnectionResult[] = [];
       for (const item of input.connections.create) {
         const row = edges.get(item.uuid)!;
         const result = await client.query<{ id: number }>(
@@ -578,7 +580,7 @@ export class CanvasService {
         'UPDATE canvases SET version=version+1,updated_at=now() WHERE id=$1 RETURNING version,updated_at',
         [input.canvas_id],
       );
-      const data = {
+      const data: CanvasBatchResult = {
         version: updated.rows[0].version,
         updated_at: updated.rows[0].updated_at.getTime(),
         nodes: { create: createdNodes, update: updatedNodes },
@@ -598,99 +600,5 @@ export class CanvasService {
       ]);
       return data;
     });
-  }
-}
-
-@Controller('api')
-@UseGuards(AuthGuard)
-export class CanvasController {
-  constructor(@Inject(CanvasService) private readonly service: CanvasService) {}
-
-  @Get('drama') list(
-    @Req() req: AuthedRequest,
-    @Query('page') page: unknown,
-    @Query('limit') limit: unknown,
-  ) {
-    const pagination = parse(
-      z.object({
-        page: z.coerce.number().int().min(1).default(1),
-        limit: z.coerce.number().int().min(1).max(100).default(20),
-      }),
-      { page, limit },
-    );
-    return this.service.listDramas(req.auth, pagination.page, pagination.limit);
-  }
-  @Post('drama') createDrama(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(z.object({ title: z.string().min(1).max(200) }).strict(), body);
-    return this.service.createDrama(req.auth, input.title);
-  }
-  @Post('drama/canvas') createCanvas(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(z.object({ drama_id: id, title: z.string().min(1).max(200) }), body);
-    return this.service.createCanvas(req.auth, input.drama_id, input.title);
-  }
-  @Get('drama/canvas/options') options(
-    @Req() req: AuthedRequest,
-    @Query('drama_id') dramaId: unknown,
-  ) {
-    return this.service.options(req.auth, parse(id, dramaId));
-  }
-  @Put('drama/canvas/rename') rename(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(
-      z.object({ canvas_id: id, canvas_title: z.string().min(1).max(200) }),
-      body,
-    );
-    return this.service.rename(req.auth, input.canvas_id, input.canvas_title);
-  }
-  @Post('drama/canvas/copy') copy(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(
-      z.object({ canvas_id: id, canvas_title: z.string().min(1).max(200) }),
-      body,
-    );
-    return this.service.copy(req.auth, input.canvas_id, input.canvas_title);
-  }
-  @Get('drama/canvas/:id') detail(@Req() req: AuthedRequest, @Param('id') canvasId: unknown) {
-    return this.service.detail(req.auth, parse(id, canvasId));
-  }
-  @Put('drama/canvas/:id') viewport(
-    @Req() req: AuthedRequest,
-    @Param('id') canvasId: unknown,
-    @Body() body: unknown,
-  ) {
-    const input = parse(
-      z.object({
-        x: z.number().finite(),
-        y: z.number().finite(),
-        window_zoom_rate: z.number().finite().min(10).max(800),
-      }),
-      body,
-    );
-    return this.service.viewport(req.auth, parse(id, canvasId), input);
-  }
-  @Delete('drama/canvas/:id') delete(@Req() req: AuthedRequest, @Param('id') canvasId: unknown) {
-    return this.service.deleteCanvas(req.auth, parse(id, canvasId));
-  }
-  @Post('node/batch') batch(@Req() req: AuthedRequest, @Body() body: unknown) {
-    return this.service.batch(req.auth, parse(batchSchema, body));
-  }
-  @Post('nodes') nodes(@Req() req: AuthedRequest, @Body() body: unknown) {
-    const input = parse(z.object({ ids: z.array(id).max(100) }), body);
-    return this.service.nodesByIds(req.auth, input.ids);
-  }
-  @Get('connection/:id') connection(@Req() req: AuthedRequest, @Param('id') connectionId: unknown) {
-    return this.service.connection(req.auth, parse(id, connectionId));
-  }
-  @Get('node') types() {
-    return {
-      list: [
-        { type: 'text' },
-        { type: 'image' },
-        { type: 'video' },
-        { type: 'audio' },
-        { type: 'group' },
-      ],
-    };
-  }
-  @Post('node/download') download() {
-    throw new AppError(503, '媒体签名服务未配置');
   }
 }

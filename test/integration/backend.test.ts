@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
-import { GenerationService } from '../../src/generation';
+import { GenerationService } from '../../src/features/generation/generation.service';
 import { createApiApp } from '../../src/main';
 
 test(
@@ -10,6 +10,7 @@ test(
   async () => {
     const app = await createApiApp();
     try {
+      /** 发送 HTTP 测试请求并统一返回状态码和 JSON 响应体。 */
       const request = async (
         method: 'GET' | 'POST' | 'PUT',
         url: string,

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { batchSchema } from '../src/canvas';
+import { batchSchema } from '../src/features/canvas/canvas.schemas';
 import { loadConfig } from '../src/config';
-import { semanticHash } from '../src/generation';
+import { semanticHash } from '../src/features/generation/generation.service';
 import { createApiApp } from '../src/main';
 
 let app: NestFastifyApplication;
@@ -23,6 +23,8 @@ test('health, API errors and security headers use the documented paths', async (
   const unauthorized = await app.inject({ method: 'GET', url: '/api/user/info' });
   assert.equal(unauthorized.statusCode, 401);
   assert.equal(unauthorized.json().code, 401);
+  const homeUnauthorized = await app.inject({ method: 'GET', url: '/api/home/init' });
+  assert.equal(homeUnauthorized.statusCode, 401);
   const unavailable = await app.inject({
     method: 'POST',
     url: '/api/login/wechat',
@@ -30,9 +32,34 @@ test('health, API errors and security headers use the documented paths', async (
   });
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.json().code, 503);
+  const invalidWechat = await app.inject({
+    method: 'POST',
+    url: '/api/login/wechat',
+    payload: {},
+  });
+  assert.equal(invalidWechat.statusCode, 400);
   const invalid = await app.inject({ method: 'POST', url: '/api/login/password', payload: {} });
   assert.equal(invalid.statusCode, 400);
   assert.equal(invalid.json().code, 400);
+});
+
+test('feature controllers remain registered after directory split', async () => {
+  const routes: { method: 'GET' | 'POST'; url: string }[] = [
+    { method: 'GET', url: '/api/account' },
+    { method: 'GET', url: '/api/credit' },
+    { method: 'GET', url: '/api/drama' },
+    { method: 'GET', url: '/api/drama/subset' },
+    { method: 'POST', url: '/api/drama/merge' },
+    { method: 'GET', url: '/api/drama/canvas/1' },
+    { method: 'POST', url: '/api/node/batch' },
+    { method: 'POST', url: '/api/task/generation/create' },
+    { method: 'POST', url: '/api/team/join' },
+    { method: 'GET', url: '/api/oss/sts' },
+  ];
+  for (const route of routes) {
+    const response = await app.inject(route);
+    assert.equal(response.statusCode, 401, `${route.method} ${route.url}`);
+  }
 });
 
 test('malformed or oversized JSON receives a safe business error', async () => {
@@ -61,6 +88,8 @@ test('OpenAPI is served from /openapi.json and uses /api paths', async () => {
   assert.equal(document.openapi, '3.1.0');
   assert.ok(document.paths['/api/node/batch'].post);
   assert.ok(document.paths['/api/task/generation/create'].post);
+  assert.ok(document.paths['/api/home/carousel'].get);
+  assert.deepEqual(document.paths['/api/home/carousel'].get.security, []);
   assert.equal(document.paths['/api/workflow/save'], undefined);
 });
 

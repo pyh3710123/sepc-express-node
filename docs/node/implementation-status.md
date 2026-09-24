@@ -1,34 +1,50 @@
 # 后端实施状态
 
-更新于 2026-09-23。此仓库原本只有 Express 服务骨架，没有[后端生成规格](backend-generation-spec.md)提及的 Nuxt `api/`、`composables/`、`types/` 目录。因此本仓库根目录直接作为独立后端项目，没有额外套一层 `backend/`。原规格中的前端源码相对链接目前不能在本仓库解析；明确写出的 HTTP 字段和路径已优先落实，宽松 `any` 字段需要真实前端源码或调用样本才能定稿。
+更新于 2026-09-24。此仓库原本只有 Express 服务骨架，没有[后端生成规格](backend-generation-spec.md)提及的 Nuxt `api/`、`composables/`、`types/` 目录。因此本仓库根目录直接作为独立后端项目，没有额外套一层 `backend/`。运行时代码已按 `src/features/` 的认证、账号、积分、项目、画布、生成、协作等功能归位，入口与共用基础设施仍在 `src/` 根目录；具体结构见 [README](../../README.md#目录结构)。原规格中的前端源码相对链接不能在本仓库解析；本轮已读取本机 AImanju 前端项目的 `api/project/index.ts`、`types.ts` 与调用组件核对项目接口。其他宽松字段仍需逐项核对。
 
 ## 已实现
 
-| 阶段 | 功能与接口 | 验证 |
-| --- | --- | --- |
-| A 基础 | NestJS/Fastify、PostgreSQL 版本化 SQL 迁移、Redis Compose、统一业务包、Zod 校验、密码登录、显式开发短信模拟、refresh 轮换、账号切换、活跃账号鉴权、`/health`、`/ready` | 无数据库 HTTP 测试；CI PostgreSQL 集成测试 |
-| B 画布 | `/drama` 列表/创建，`/drama/canvas` 创建/详情/选项/重命名/复制/删除，个人视口，`/node/batch` 原子保存，`/nodes`、`/connection/{id}`、`/node` | CI 中保存/冲突/回滚/级联/账号隔离测试 |
-| C 生成 | 开发模型目录含两种模式、`/node/credit`、单次/批量生成、持久 request_id 幂等、积分账本、outbox、BullMQ worker、progress/cancel | CI 中询价、重复请求、扣费、完成及退款测试 |
-| D 协作 | 原生 WS connect、`/team/join`、本机房间 presence、Redis 临时锁、提交后 outbox 事件广播、可选版本补发 | 已写两客户端入房/锁测试；仍需执行及补断线压力测试 |
-| 文档 | 根目录 `docs/` 与 `src/` 平级，`/openapi.json`，Compose、环境示例和运行说明 | `npm run check`、`npm run build` |
+| 阶段           | 功能与接口                                                                                                                                                                                                          | 验证                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| A 基础         | NestJS/Fastify、PostgreSQL 版本化 SQL 迁移、Redis Compose、统一业务包、Zod 校验、密码登录、显式开发短信模拟、refresh 轮换、账号切换、活跃账号鉴权、`/health`、`/ready`                                              | 无数据库 HTTP 测试；CI PostgreSQL 集成测试                                                 |
+| 首页与登录注册 | `/home/init` 基于当前模拟能力判断、匿名 `/home/carousel` 读取已发布且在展示期内的数据；短信首次登录自动注册个人账号，验证码按手机号串行限频并一次性消费                                                             | 无数据库 HTTP 测试；CI PostgreSQL 集成测试包含并发限频、自动注册、首页筛选及登录后并行读取 |
+| B 画布         | `/drama` 列表/平铺/创建/更新/移动/合并/解除/软删除，`/project/recycle` 查询/恢复/永久删除，`/drama/canvas` 创建/详情/选项/重命名/复制/删除，个人视口，`/node/batch` 原子保存，`/nodes`、`/connection/{id}`、`/node` | 已写保存/冲突/回滚/级联/账号隔离、项目回收站及项目组事务集成测试；待 CI 执行               |
+| C 生成         | 开发模型目录含两种模式、`/node/credit`、单次/批量生成、持久 request_id 幂等、积分账本、outbox、BullMQ worker、progress/cancel                                                                                       | CI 中询价、重复请求、扣费、完成及退款测试                                                  |
+| D 协作         | 原生 WS connect、`/team/join`、本机房间 presence、Redis 临时锁、提交后 outbox 事件广播、可选版本补发                                                                                                                | 已写两客户端入房/锁测试；仍需执行及补断线压力测试                                          |
+| 文档           | 根目录 `docs/` 与 `src/` 平级，`/openapi.json`，Compose、环境示例和运行说明                                                                                                                                         | `npm run check`、`npm run build`                                                           |
 
 开发模拟需 `DEV_MOCK_EXTERNALS=true`；生产配置禁止开启。模拟模型结果使用 `mock: true` 和 `mock://` 地址，不会被当作真实 OSS 资产。未配置的微信、OSS、支付、工作流与火山素材入口返回 503。除此之外尚未实现的规格第 7 节接口返回 404；**不能把本版本当成 198 个前端调用点均已兼容的上线候选**。
 
 ## 尚需完成
 
 1. 阶段 A：项目级权限策略、会话跨实例主动撤销、真实短信/微信适配器、生产密钥轮换。当前团队成员可以读取、编辑和生成本团队画布；删除限所有者/管理员。正式权限矩阵需产品与前端确认。
-2. 阶段 B：短剧更新/删除/回收站等外围项目路由，以及基于真实前端类型收敛的 DTO。画布主要保存契约已实现，但与 Nuxt 真正联调尚未执行。
+2. 阶段 B：个人项目导入、回收站 30 天自动清理等外围行为，以及基于真实前端类型继续收敛 DTO。画布主要保存契约、项目回收站和项目组操作已实现，但与 Nuxt 真正联调尚未执行。
 3. 阶段 C：真实 AI Provider Adapter、供应商查询/回调/不确定状态对账、节点下载签名、跨重启运行中任务恢复策略。worker 当前只运行显式开发模拟适配器。
 4. 阶段 D：跨实例 presence 与踢出广播、锁租约心跳的前端协议确认、多浏览器消息验收与断线重同步测试。Redis 广播覆盖图事件，presence 当前保存在 API 进程内。
 5. 阶段 E/F：规格第 7 节其余接口、OSS STS 与上传登记、团队/剧本/素材/作品/订单/回调/发票等模块，真实供应商沙箱和 Nuxt 端到端验收。未提供商户、模型、OSS、微信、短信配置时不可将这些接口伪装为成功。
 
 ## 当前验证边界
 
-本机已运行格式检查、ESLint、TypeScript 检查、无数据库 HTTP 测试和编译。当前环境没有 PostgreSQL、Redis 或 Docker 可执行文件，因而本机未运行 SQL 迁移、种子、数据库/WS/worker 集成测试。CI 配置了 PostgreSQL 16 与 Redis 7 服务并执行这些步骤；在 CI 首次运行成功之前，不应将集成测试标记为已通过。Nuxt 浏览器联调、第三方服务沙箱、容量测试均未执行。
+本机已运行格式检查、ESLint、TypeScript 检查、无数据库 HTTP 测试和编译。本机 Node.js 为 20.20.2，项目要求 Node.js 22；当前环境没有 PostgreSQL、Redis 或 Docker 可执行文件，因而本机未运行 SQL 迁移、种子、数据库/WS/worker 集成测试。CI 配置了 Node.js 22、PostgreSQL 16 与 Redis 7 服务并执行这些步骤；在 CI 首次运行成功之前，不应将集成测试标记为已通过。Nuxt 浏览器联调、第三方服务沙箱、容量测试均未执行。
+
+## 本轮前端契约核对
+
+| 路由                                   | 原先仅按规格推定                   | 当前前端实际调用与本轮实现                                                                                                 |
+| -------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `POST /drama`                          | `{title}`，只返回 `drama_id`       | `{parent_id,is_group}`，可带 `title`；创建短剧时同事务创建首张画布并返回 `drama_id,canvas_id`                              |
+| `GET /drama`                           | 仅 `page,limit`                    | 页面还传 `parent_id,name,all`；列表项需要 `is_group,canvas_id,cover_image,create_time`，响应另有 `drama_total,group_total` |
+| `PUT /drama`                           | 仅重命名                           | 页面分别提交 `{drama_id,title}` 或 `{drama_id,cover_image}`；封面须来自当前账号已登记的图片资产                            |
+| `DELETE /drama`、回收站恢复/永久删除   | 单个 `drama_id` 或自定 `drama_ids` | 三个接口统一发送 `{ids:[...]}`；项目组删除/恢复/永久删除包含对应子项目                                                     |
+| `GET /project/recycle`                 | 普通项目字段                       | 页面传 `name,type` 并读取 `id,project_name,project_type,project_create_time,project_delete_time`                           |
+| `GET /drama/subset`                    | 未实现                             | 团队权限页面读取 `data.list` 的 `drama_id,title`；现返回当前账号所有层级的未删除短剧，可按 `page,limit` 分页               |
+| `POST /drama/move`、`/drama/batchMove` | 未实现                             | `action=remove` 传 `drama_id` 或 `ids`；`action=transfer` 另传 `target_id`，仅允许移动短剧到当前账号未删除项目组           |
+| `POST /drama/merge`、`/drama/untie`    | 未实现                             | 合并同层级项目使用 `{ids}`，解除项目组也使用 `{ids}` 且保留组内项目和画布                                                  |
+
+`type=script` 的回收站查询当前返回空列表，剧本模块尚未实现。封面更新依赖资产登记；OSS 上传服务未配置时，前端真实上传仍无法完成。
 
 ## 待确认的协议与数据
 
-- 原前端 `api/*/types.ts` 和调用点在本仓库缺失；`/drama` 创建以外的表单、`/account/change` 的历史宽松字段、`/home/init` 完整响应、剧本/团队/账务及创作工具 DTO 需逐项核对。
+- 其他前端 `any` 字段、`/account/change` 的历史宽松字段、`/home/init` 完整响应、`/home/carousel` 的轮播字段、剧本/团队/账务及创作工具 DTO 尚未逐项核对。首页轮播当前无管理接口或正式素材，数据库默认无已发布内容。
 - 真实模型目录、定价、并发限制、失败退款、幂等保留期；生产服务暂不接受模型生成。
 - OSS 对象前缀、STS 策略、媒体 URL 与下载水印规则。
 - 微信、短信供应商和支付回调签名/金额/权益规则。

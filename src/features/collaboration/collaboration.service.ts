@@ -1,25 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { Duplex } from 'node:stream';
-import {
-  Body,
-  Controller,
-  Injectable,
-  Post,
-  Req,
-  UseGuards,
-  type OnModuleDestroy,
-} from '@nestjs/common';
+import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
-import { AuthGuard, AuthService, type AuthedRequest, type Identity } from './auth';
-import { CanvasService } from './canvas';
-import { AppError, parse } from './common';
-import { APP_CONFIG, type AppConfig } from './config';
-import { Database } from './database';
+import type { QueryResultRow } from 'pg';
+import { AuthService, type Identity } from '../auth';
+import { CanvasService } from '../canvas/canvas.service';
+import { AppError, parse } from '../../common';
+import { APP_CONFIG, type AppConfig } from '../../config';
+import { Database } from '../../database';
 import { Inject } from '@nestjs/common';
-import { sessionEvents } from './session-events';
+import { sessionEvents } from '../auth/session-events';
 
 interface Peer {
   socket: WebSocket;
@@ -34,6 +27,31 @@ interface Peer {
   messageCount: number;
 }
 
+interface CollaborationMember {
+  client_id: string;
+  user_id: number;
+}
+
+interface CollaborationLock {
+  node_id: number;
+  lock_type: string;
+  client_id: string;
+}
+
+interface CollaborationEvent extends QueryResultRow {
+  event_id: string;
+  server_version: number;
+  payload: unknown;
+}
+
+interface CollaborationJoinResult {
+  list: CollaborationMember[];
+  locks: CollaborationLock[];
+  version: number;
+  events: CollaborationEvent[];
+  resync_required: boolean;
+}
+
 @Injectable()
 export class CollaborationService implements OnModuleDestroy {
   private readonly peers = new Map<string, Peer>();
@@ -42,6 +60,7 @@ export class CollaborationService implements OnModuleDestroy {
   private readonly subscriber: Redis;
   private closed = false;
 
+  /** 注入认证、画布和数据库服务，并建立 WebSocket 与 Redis 客户端。 */
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
     @Inject(CanvasService) private readonly canvases: CanvasService,
@@ -53,11 +72,14 @@ export class CollaborationService implements OnModuleDestroy {
     sessionEvents.on('invalidated', this.kickSession);
   }
 
+  /** 连接 Redis 事件通道并把 HTTP Upgrade 请求交给 WebSocket 服务。 */
   async attach(server: Server): Promise<void> {
     await this.redis.connect();
     await this.subscriber.connect();
     await this.subscriber.subscribe('canvas-events');
-    this.subscriber.on('message', (_channel, raw) => this.broadcastSavedEvent(raw));
+    this.subscriber.on('message', (channel, raw) => {
+      if (channel === 'canvas-events') this.broadcastSavedEvent(raw);
+    });
     server.on('upgrade', (request, socket, head) => {
       void this.upgrade(request.url ?? '/', request.headers.origin, socket, head, request).catch(
         () => {
@@ -68,6 +90,7 @@ export class CollaborationService implements OnModuleDestroy {
     });
   }
 
+  /** 校验来源与会话令牌后完成 WebSocket 握手并登记客户端。 */
   private async upgrade(
     path: string,
     origin: string | undefined,
@@ -115,13 +138,14 @@ export class CollaborationService implements OnModuleDestroy {
     );
   }
 
+  /** 校验客户端身份和画布权限，并返回成员、锁及缺失的增量事件。 */
   async join(
     actor: Identity,
     dramaId: number,
     canvasId: number,
     clientId: string,
     lastVersion?: number,
-  ) {
+  ): Promise<CollaborationJoinResult> {
     const peer = this.peers.get(clientId);
     if (
       !peer ||
@@ -136,10 +160,10 @@ export class CollaborationService implements OnModuleDestroy {
     if (canvas.drama_id !== dramaId) throw new AppError(404, '画布不存在');
     peer.canvasId = canvasId;
     peer.dramaId = dramaId;
-    const list = [...this.peers.values()]
+    const list: CollaborationMember[] = [...this.peers.values()]
       .filter((item) => item.canvasId === canvasId && item.identity.accountId === actor.accountId)
       .map((item) => ({ client_id: item.clientId, user_id: item.identity.userId }));
-    const locks: { node_id: number; lock_type: string; client_id: string }[] = [];
+    const locks: CollaborationLock[] = [];
     let cursor = '0';
     const prefix = `canvas-lock:${actor.accountId}:${canvasId}:`;
     do {
@@ -158,7 +182,7 @@ export class CollaborationService implements OnModuleDestroy {
     const events =
       lastVersion !== undefined && !resyncRequired
         ? (
-            await this.db.query(
+            await this.db.query<CollaborationEvent>(
               'SELECT event_id,server_version,payload FROM canvas_events WHERE canvas_id=$1 AND server_version>$2 ORDER BY server_version LIMIT 100',
               [canvasId, lastVersion],
             )
@@ -168,6 +192,7 @@ export class CollaborationService implements OnModuleDestroy {
     return { list, locks, version: canvas.version, events, resync_required: resyncRequired };
   }
 
+  /** 账号切换或令牌轮换后关闭使用旧会话的 WebSocket 连接。 */
   kickSession = (sessionId: string): void => {
     for (const peer of this.peers.values())
       if (peer.identity.sessionId === sessionId) {
@@ -176,10 +201,12 @@ export class CollaborationService implements OnModuleDestroy {
       }
   };
 
+  /** 向仍处于开放状态的单个协作连接发送协议消息。 */
   private send(peer: Peer, type: string, data: unknown): void {
     if (peer.socket.readyState === WebSocket.OPEN) peer.socket.send(JSON.stringify({ type, data }));
   }
 
+  /** 向同画布、同账号的协作成员广播消息，可排除消息发送者。 */
   private broadcast(
     canvasId: number,
     accountId: number,
@@ -197,6 +224,7 @@ export class CollaborationService implements OnModuleDestroy {
       }
   }
 
+  /** 校验客户端消息、执行协作锁操作并限制消息大小与发送频率。 */
   private async message(peer: Peer, raw: string): Promise<void> {
     if (raw.length > 32768) throw new AppError(400, 'WS 消息过大');
     const now = Date.now();
@@ -267,7 +295,7 @@ export class CollaborationService implements OnModuleDestroy {
       );
       return;
     }
-    // Structural notifications from the browser are ignored. Committed outbox events are authoritative.
+    // 浏览器提交的结构变更通知不会直接采信；以数据库提交后发布的 outbox 事件为准。
     if (
       [
         'update_node',
@@ -282,6 +310,7 @@ export class CollaborationService implements OnModuleDestroy {
     throw new AppError(400, '未知 WS 消息');
   }
 
+  /** 仅当锁仍属于指定客户端时才从 Redis 中原子释放。 */
   private async release(key: string, clientId: string): Promise<boolean> {
     const removed = await this.redis.eval(
       "if redis.call('GET',KEYS[1]) == ARGV[1] then return redis.call('DEL',KEYS[1]) else return 0 end",
@@ -292,6 +321,7 @@ export class CollaborationService implements OnModuleDestroy {
     return removed === 1;
   }
 
+  /** 移除断开连接的成员，释放其锁并广播最新在线列表。 */
   private async disconnect(peer: Peer): Promise<void> {
     if (!this.peers.delete(peer.clientId)) return;
     for (const key of peer.lockKeys) {
@@ -313,6 +343,7 @@ export class CollaborationService implements OnModuleDestroy {
       });
   }
 
+  /** 将数据库 outbox 发布的已提交变更转换为 WebSocket 更新事件。 */
   private broadcastSavedEvent(raw: string): void {
     const event = JSON.parse(raw) as {
       event_id: string;
@@ -344,6 +375,7 @@ export class CollaborationService implements OnModuleDestroy {
       });
   }
 
+  /** 幂等关闭所有客户端、WebSocket 服务和 Redis 连接。 */
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
@@ -357,35 +389,13 @@ export class CollaborationService implements OnModuleDestroy {
     this.redis.disconnect();
   }
 
+  /** 通过 Redis PING 检查协作服务依赖是否可用。 */
   async ping(): Promise<void> {
     await this.redis.ping();
   }
 
+  /** NestJS 销毁模块时复用协作服务的清理流程。 */
   onModuleDestroy(): Promise<void> {
     return this.close();
-  }
-}
-
-@Controller('api')
-@UseGuards(AuthGuard)
-export class CollaborationController {
-  constructor(@Inject(CollaborationService) private readonly collaboration: CollaborationService) {}
-  @Post('team/join') join(@Req() request: AuthedRequest, @Body() body: unknown) {
-    const input = parse(
-      z.object({
-        drama_id: z.coerce.number().int().positive(),
-        canvas_id: z.coerce.number().int().positive(),
-        client_id: z.string().uuid(),
-        last_version: z.number().int().nonnegative().optional(),
-      }),
-      body,
-    );
-    return this.collaboration.join(
-      request.auth,
-      input.drama_id,
-      input.canvas_id,
-      input.client_id,
-      input.last_version,
-    );
   }
 }

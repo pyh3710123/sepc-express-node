@@ -9,9 +9,10 @@ import helmet from '@fastify/helmet';
 import { AppModule } from './app.module';
 import { ApiErrorFilter, ResponseInterceptor } from './common';
 import { APP_CONFIG, type AppConfig } from './config';
-import { CollaborationService } from './collaboration';
+import { CollaborationService } from './features/collaboration/collaboration.service';
 import { createLogger } from './logger';
 
+/** 构造并初始化 HTTP 应用、全局中间件、过滤器和响应拦截器。 */
 export async function createApiApp(): Promise<NestFastifyApplication> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -72,6 +73,7 @@ export async function createApiApp(): Promise<NestFastifyApplication> {
   return app;
 }
 
+/** 启动 HTTP 服务并挂载 WebSocket 协作端点与退出清理逻辑。 */
 async function main(): Promise<void> {
   const app = await createApiApp();
   const config = app.get<AppConfig>(APP_CONFIG);

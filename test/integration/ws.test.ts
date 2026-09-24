@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import { WebSocket } from 'ws';
-import { CollaborationService } from '../../src/collaboration';
+import { CollaborationService } from '../../src/features/collaboration/collaboration.service';
 import { createApiApp } from '../../src/main';
 
+/** 等待 WebSocket 上指定类型的消息，并在超时后清理监听器。 */
 function message(
   socket: WebSocket,
   type: string,
@@ -14,6 +15,7 @@ function message(
       socket.off('message', receive);
       reject(new Error(`Timed out waiting for ${type}`));
     }, 5000);
+    /** 解析收到的消息，只完成与当前等待类型匹配的监听。 */
     const receive = (raw: Buffer) => {
       const parsed = JSON.parse(raw.toString()) as { type: string; data: Record<string, unknown> };
       if (parsed.type !== type) return;
@@ -38,6 +40,7 @@ test(
       const address = app.getHttpServer().address();
       assert.ok(address && typeof address !== 'string');
       const base = `ws://127.0.0.1:${address.port}`;
+      /** 发送 HTTP 测试请求并解析统一响应体。 */
       const request = async (
         method: 'GET' | 'POST',
         url: string,
@@ -52,6 +55,7 @@ test(
             payload,
           })
         ).json();
+      /** 使用演示账号登录并切换到团队账号，返回新访问令牌。 */
       const login = async (username: string) => {
         const initial = await request('POST', '/api/login/password', undefined, {
           username,
@@ -72,6 +76,7 @@ test(
         .data.list[0].canvas_id as number;
       const node = (await request('GET', `/api/drama/canvas/${canvas}`, alice)).data.nodes[0]
         .node_id as number;
+      /** 使用访问令牌建立 WebSocket 连接并等待服务端连接消息。 */
       const open = async (token: string) => {
         const socket = new WebSocket(`${base}/?token=${encodeURIComponent(token)}`);
         sockets.push(socket);

@@ -47,8 +47,10 @@ export interface AppConfig {
   maxGenerationTasks: number;
 }
 
+/** NestJS 中注入经过校验的应用配置时使用的令牌。 */
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
+/** 将逗号分隔的来源列表校验并转换为规范化 origin。 */
 function origins(value: string): string[] {
   return value
     .split(',')
@@ -63,6 +65,7 @@ function origins(value: string): string[] {
     });
 }
 
+/** 解析环境变量并拒绝不安全或互相矛盾的部署配置。 */
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const parsed = schema.safeParse(env);
   if (!parsed.success)

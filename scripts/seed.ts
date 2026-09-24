@@ -2,8 +2,9 @@ import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import { loadConfig } from '../src/config';
-import { hashPassword } from '../src/password';
+import { hashPassword } from '../src/features/auth/password';
 
+/** 查找演示用户；不存在时创建并返回其数据库 ID。 */
 async function user(
   client: PoolClient,
   username: string,
@@ -21,6 +22,7 @@ async function user(
   return result.rows[0].id;
 }
 
+/** 查找或创建演示账号，并返回账号 ID。 */
 async function account(
   client: PoolClient,
   name: string,
@@ -39,6 +41,7 @@ async function account(
   return result.rows[0].id;
 }
 
+/** 在非生产环境中幂等写入本地演示账号、画布和模拟模型数据。 */
 async function main(): Promise<void> {
   const config = loadConfig();
   if (config.nodeEnv === 'production')
