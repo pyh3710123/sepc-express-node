@@ -6,6 +6,7 @@ import { AppError, parse } from '../../common';
 import type { Identity } from '../auth';
 import { APP_CONFIG, type AppConfig } from '../../config';
 import { Database, type QueryExecutor } from '../../database';
+import { PermissionsService } from '../permissions/permissions.service';
 
 const id = z.coerce.number().int().positive();
 const scalar = z.union([z.string().max(1000), z.number().finite(), z.boolean()]);
@@ -151,12 +152,50 @@ export function semanticHash(value: unknown): string {
   return createHash('sha256').update(stable(value)).digest('hex');
 }
 
+type CreditBucket = 'subscription' | 'recharge' | 'gift';
+type BucketAmounts = Record<CreditBucket, number>;
+const CREDIT_BUCKET_BY_ID: Record<number, CreditBucket> = {
+  1: 'subscription',
+  2: 'recharge',
+  3: 'gift',
+};
+const DEFAULT_CREDIT_PRIORITY = [1, 2, 3];
+
+/** 按账号顺序逐任务分配积分来源，保留每个任务可退款的扣费构成。 */
+export function allocateTaskDebits(
+  costs: number[],
+  balance: BucketAmounts,
+  priority: number[],
+): BucketAmounts[] {
+  if (
+    priority.length !== 3 ||
+    new Set(priority).size !== 3 ||
+    priority.some((id) => !DEFAULT_CREDIT_PRIORITY.includes(id))
+  )
+    throw new AppError(409, '积分消耗顺序配置无效');
+  return costs.map((cost) => {
+    const debit: BucketAmounts = { subscription: 0, recharge: 0, gift: 0 };
+    let remaining = cost;
+    for (const id of priority) {
+      const bucket = CREDIT_BUCKET_BY_ID[id];
+      if (!bucket) throw new AppError(409, '积分消耗顺序配置无效');
+      const used = Math.min(remaining, balance[bucket]);
+      debit[bucket] = used;
+      balance[bucket] -= used;
+      remaining -= used;
+    }
+    if (remaining > 0) throw new AppError(402, '积分不足');
+    return debit;
+  });
+}
+
 @Injectable()
 export class GenerationService {
   /** 注入数据库和开发模拟配置，处理模型能力与任务生命周期。 */
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(PermissionsService) private readonly permissions: PermissionsService,
   ) {}
 
   /** 按模型聚合当前启用的生成能力；关闭模拟模式时返回空列表。 */
@@ -193,6 +232,14 @@ export class GenerationService {
     return { list: [...models.values()] };
   }
 
+  /** 为筛选器返回持久模型主键和名称。 */
+  async modelSelect(): Promise<{ list: Array<{ model_id: number; model_name: string }> }> {
+    const result = await this.db.query<{ model_id: number; model_name: string }>(
+      'SELECT model_id,model_name FROM model_catalog WHERE active ORDER BY model_id',
+    );
+    return { list: result.rows };
+  }
+
   /** 校验节点、模型能力、输入参数和媒体归属并计算任务费用。 */
   private async normalize(
     client: QueryExecutor,
@@ -211,6 +258,7 @@ export class GenerationService {
     const canvasId = target.rows[0]?.canvas_id;
     if (!canvasId || (task.canvas_id && task.canvas_id !== canvasId))
       throw new AppError(404, '生成节点不存在');
+    await this.permissions.assertProject(actor, 'drama', dramaId, 'generate', client);
     const capabilities = await client.query<Capability>(
       `SELECT c.*,m.provider FROM model_capabilities c JOIN model_catalog m ON m.model_code=c.model_code
       WHERE c.model_code=$1 AND c.node_type=$2 AND c.active AND m.active`,
@@ -273,14 +321,26 @@ export class GenerationService {
       if (max != null && task.inputs[inputKey].length > max)
         throw new AppError(400, `${key} 数量超限`);
       for (const item of task.inputs[inputKey]) {
-        if (typeof item === 'string' || !item.asset_id)
-          throw new AppError(400, '媒体输入需使用当前账号已登记的 asset_id');
-        const asset = await client.query<{ url: string }>(
-          'SELECT url FROM media_assets WHERE id=$1 AND account_id=$2',
-          [item.asset_id, actor.accountId],
+        const url = typeof item === 'string' ? item : item.url;
+        if (typeof item !== 'string' && item.asset_id) {
+          const asset = await client.query<{ url: string }>(
+            `SELECT url FROM media_assets WHERE id=$1 AND account_id=$2
+             AND split_part(mime_type,'/',1)=$3`,
+            [item.asset_id, actor.accountId, key.slice(0, -1)],
+          );
+          if (!asset.rows[0] || asset.rows[0].url !== url)
+            throw new AppError(404, '媒体资产不存在');
+          continue;
+        }
+        // URL 形态仅接受当前账号已登记或后台已发布的公共素材，拒绝任意外链。
+        const registeredAsset = await client.query(
+          `SELECT 1 FROM media_assets WHERE account_id=$1 AND url=$2
+             AND split_part(mime_type,'/',1)=$3
+           UNION ALL SELECT 1 FROM public_media_assets WHERE published AND url=$2
+             AND split_part(mime_type,'/',1)=$3 LIMIT 1`,
+          [actor.accountId, url, key.slice(0, -1)],
         );
-        if (!asset.rows[0] || asset.rows[0].url !== item.url)
-          throw new AppError(404, '媒体资产不存在');
+        if (!registeredAsset.rowCount) throw new AppError(404, '媒体资产不存在');
       }
     }
     const count = typeof normalized.count === 'number' ? normalized.count : 1;
@@ -324,6 +384,14 @@ export class GenerationService {
     if (!this.config.devMockExternals) throw new AppError(503, '模型供应商未配置');
     if (tasks.length > this.config.maxGenerationTasks) throw new AppError(400, '任务数量超限');
     return this.db.transaction(async (client) => {
+      // 锁住成员身份直至任务受理提交，避免移除成员与扣费同时发生。
+      const membership = await client.query<{ role: Identity['role'] }>(
+        `SELECT role FROM account_members WHERE account_id=$1 AND user_id=$2
+         AND status='active' FOR SHARE`,
+        [actor.accountId, actor.userId],
+      );
+      if (!membership.rows[0] || membership.rows[0].role !== actor.role)
+        throw new AppError(401, '账号身份已变化，请重新登录');
       const normalized = [];
       for (const task of tasks) normalized.push(await this.normalize(client, actor, dramaId, task));
       const payloadHash = semanticHash(
@@ -350,13 +418,59 @@ export class GenerationService {
         return previous.response;
       }
       const wallet = (
-        await client.query<{ balance: number }>(
-          'SELECT balance FROM credit_wallets WHERE account_id=$1 FOR UPDATE',
+        await client.query<{
+          balance: number;
+          subscription_balance: number;
+          recharge_balance: number;
+          gift_balance: number;
+        }>(
+          `SELECT balance,subscription_balance,recharge_balance,gift_balance
+           FROM credit_wallets WHERE account_id=$1 FOR UPDATE`,
           [actor.accountId],
         )
       ).rows[0];
       const cost = normalized.reduce((sum, task) => sum + task.price_credits, 0);
+      if (actor.role === 'member') {
+        // 锁住额度记录，让同一成员跨实例并发受理任务时使用量检查串行化。
+        const allocation = await client.query<{ credit_quota: number }>(
+          `SELECT credit_quota::float8 AS credit_quota FROM member_credit_allocations WHERE account_id=$1 AND user_id=$2 FOR UPDATE`,
+          [actor.accountId, actor.userId],
+        );
+        const quota = allocation.rows[0]?.credit_quota ?? -1;
+        if (quota >= 0) {
+          const used = await client.query<{ use_credit: number }>(
+            `SELECT COALESCE(sum(price_credits),0)::int AS use_credit FROM generation_tasks
+             WHERE account_id=$1 AND created_by=$2 AND status IN ('queued','running','completed')
+             AND created_at>=date_trunc('month',now())`,
+            [actor.accountId, actor.userId],
+          );
+          if (used.rows[0].use_credit + cost > quota) throw new AppError(402, '成员积分额度不足');
+        }
+      }
       if (!wallet || wallet.balance < cost) throw new AppError(402, '积分不足');
+      const prioritySetting = await client.query<{ priority: number[] }>(
+        'SELECT priority FROM credit_priority_settings WHERE account_id=$1',
+        [actor.accountId],
+      );
+      const priority = prioritySetting.rows[0]?.priority ?? DEFAULT_CREDIT_PRIORITY;
+      const buckets: BucketAmounts = {
+        subscription: wallet.subscription_balance,
+        recharge: wallet.recharge_balance,
+        gift: wallet.gift_balance,
+      };
+      const taskDebits = allocateTaskDebits(
+        normalized.map((task) => task.price_credits),
+        buckets,
+        priority,
+      );
+      const debitTotal = taskDebits.reduce<BucketAmounts>(
+        (sum, debit) => ({
+          subscription: sum.subscription + debit.subscription,
+          recharge: sum.recharge + debit.recharge,
+          gift: sum.gift + debit.gift,
+        }),
+        { subscription: 0, recharge: 0, gift: 0 },
+      );
       const running = await client.query<{ count: string }>(
         `SELECT count(*)::text AS count FROM generation_tasks
         WHERE account_id=$1 AND status IN ('queued','running')`,
@@ -366,20 +480,32 @@ export class GenerationService {
         throw new AppError(412, '并发任务已达上限');
       const balance = wallet.balance - cost;
       await client.query(
-        'UPDATE credit_wallets SET balance=$1,updated_at=now() WHERE account_id=$2',
-        [balance, actor.accountId],
+        `UPDATE credit_wallets SET balance=$1,subscription_balance=$2,recharge_balance=$3,
+         gift_balance=$4,updated_at=now() WHERE account_id=$5`,
+        [balance, buckets.subscription, buckets.recharge, buckets.gift, actor.accountId],
       );
       await client.query(
-        'INSERT INTO credit_ledger(account_id,source_key,amount,balance_after) VALUES ($1,$2,$3,$4)',
-        [actor.accountId, `generation:${recordId}`, -cost, balance],
+        `INSERT INTO credit_ledger(account_id,source_key,amount,balance_after,bucket_amounts)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [
+          actor.accountId,
+          `generation:${recordId}`,
+          -cost,
+          balance,
+          {
+            subscription: -debitTotal.subscription,
+            recharge: -debitTotal.recharge,
+            gift: -debitTotal.gift,
+          },
+        ],
       );
       const taskIds: string[] = [];
       for (const [index, task] of normalized.entries()) {
         const taskId = randomUUID();
         taskIds.push(taskId);
         await client.query(
-          `INSERT INTO generation_tasks(task_id,generation_request_id,task_index,account_id,canvas_id,node_id,status,price_credits,payload)
-          VALUES ($1,$2,$3,$4,$5,$6,'queued',$7,$8)`,
+          `INSERT INTO generation_tasks(task_id,generation_request_id,task_index,account_id,canvas_id,node_id,status,price_credits,payload,created_by,debit_buckets)
+          VALUES ($1,$2,$3,$4,$5,$6,'queued',$7,$8,$9,$10)`,
           [
             taskId,
             recordId,
@@ -389,6 +515,8 @@ export class GenerationService {
             task.node_id,
             task.price_credits,
             task,
+            actor.userId,
+            taskDebits[index],
           ],
         );
         await client.query('UPDATE nodes SET current_task_id=$1 WHERE id=$2 AND canvas_id=$3', [
@@ -447,17 +575,30 @@ export class GenerationService {
   /** 返回当前账号指定任务的执行进度与结果。 */
   async progress(actor: Identity, body: unknown): Promise<{ list: GenerationTaskProgress[] }> {
     const input = parse(idsSchema, body);
-    const result = await this.db.query<GenerationTaskProgress>(
-      `SELECT task_id,status,progress,result,error_message,node_id
-      FROM generation_tasks WHERE task_id=ANY($1::uuid[]) AND account_id=$2`,
+    const result = await this.db.query<GenerationTaskProgress & { drama_id: number | null }>(
+      `SELECT t.task_id,t.status,t.progress,t.result,t.error_message,t.node_id,d.id AS drama_id
+      FROM generation_tasks t LEFT JOIN canvases c ON c.id=t.canvas_id
+      LEFT JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL
+      WHERE t.task_id=ANY($1::uuid[]) AND t.account_id=$2`,
       [input.task_ids, actor.accountId],
     );
     if (result.rowCount !== new Set(input.task_ids).size) throw new AppError(404, '任务不存在');
+    for (const dramaId of new Set(result.rows.map((row) => row.drama_id))) {
+      if (dramaId) await this.permissions.assertProject(actor, 'drama', dramaId, 'read');
+      else if (actor.role === 'member') throw new AppError(404, '任务不存在');
+    }
     const map = new Map(result.rows.map((row) => [row.task_id, row]));
     const list = input.task_ids.map((taskId) => {
       const task = map.get(taskId);
       if (!task) throw new AppError(404, '任务不存在');
-      return task;
+      return {
+        task_id: task.task_id,
+        status: task.status,
+        progress: task.progress,
+        result: task.result,
+        error_message: task.error_message,
+        node_id: task.node_id,
+      };
     });
     return { list };
   }
@@ -465,13 +606,21 @@ export class GenerationService {
   /** 取消尚未运行的任务，并在事务中返还已扣积分。 */
   async cancel(actor: Identity, taskId: string): Promise<{ task_id: string; status: string }> {
     return this.db.transaction(async (client) => {
-      const result = await client.query<{ status: string; price_credits: number }>(
-        `SELECT status,price_credits FROM generation_tasks
-        WHERE task_id=$1 AND account_id=$2 FOR UPDATE`,
+      const result = await client.query<{
+        status: string;
+        price_credits: number;
+        drama_id: number | null;
+      }>(
+        `SELECT t.status,t.price_credits,d.id AS drama_id FROM generation_tasks t
+         LEFT JOIN canvases c ON c.id=t.canvas_id LEFT JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL
+         WHERE t.task_id=$1 AND t.account_id=$2 FOR UPDATE OF t`,
         [taskId, actor.accountId],
       );
       const task = result.rows[0];
       if (!task) throw new AppError(404, '任务不存在');
+      if (task.drama_id)
+        await this.permissions.assertProject(actor, 'drama', task.drama_id, 'generate', client);
+      else if (actor.role === 'member') throw new AppError(404, '任务不存在');
       if (task.status === 'running') throw new AppError(409, '任务正在执行，无法取消');
       if (task.status !== 'queued') return { task_id: taskId, status: task.status };
       await client.query(
@@ -496,20 +645,45 @@ export class GenerationService {
       [accountId, `refund:${taskId}`],
     );
     if (existing.rowCount) return;
+    const debited = await client.query<{ debit_buckets: BucketAmounts }>(
+      'SELECT debit_buckets FROM generation_tasks WHERE task_id=$1 AND account_id=$2',
+      [taskId, accountId],
+    );
+    const original = debited.rows[0]?.debit_buckets;
+    const amounts: BucketAmounts =
+      original && Object.keys(original).length
+        ? original
+        : { subscription: 0, recharge: 0, gift: amount };
+    if (amounts.subscription + amounts.recharge + amounts.gift !== amount)
+      throw new AppError(409, '积分退款来源不匹配');
     const wallet = (
-      await client.query<{ balance: number }>(
-        'SELECT balance FROM credit_wallets WHERE account_id=$1 FOR UPDATE',
+      await client.query<{
+        balance: number;
+        subscription_balance: number;
+        recharge_balance: number;
+        gift_balance: number;
+      }>(
+        `SELECT balance,subscription_balance,recharge_balance,gift_balance
+         FROM credit_wallets WHERE account_id=$1 FOR UPDATE`,
         [accountId],
       )
     ).rows[0];
     const balance = wallet.balance + amount;
     await client.query(
-      'UPDATE credit_wallets SET balance=$1,updated_at=now() WHERE account_id=$2',
-      [balance, accountId],
+      `UPDATE credit_wallets SET balance=$1,subscription_balance=$2,recharge_balance=$3,
+       gift_balance=$4,updated_at=now() WHERE account_id=$5`,
+      [
+        balance,
+        wallet.subscription_balance + amounts.subscription,
+        wallet.recharge_balance + amounts.recharge,
+        wallet.gift_balance + amounts.gift,
+        accountId,
+      ],
     );
     await client.query(
-      'INSERT INTO credit_ledger(account_id,source_key,amount,balance_after) VALUES ($1,$2,$3,$4)',
-      [accountId, `refund:${taskId}`, amount, balance],
+      `INSERT INTO credit_ledger(account_id,source_key,amount,balance_after,bucket_amounts)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [accountId, `refund:${taskId}`, amount, balance, amounts],
     );
   }
 

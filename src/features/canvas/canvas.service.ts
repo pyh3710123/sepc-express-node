@@ -6,6 +6,7 @@ import type { Identity } from '../auth';
 import { APP_CONFIG, type AppConfig } from '../../config';
 import { Database, type QueryExecutor } from '../../database';
 import type { BatchInput } from './canvas.schemas';
+import { PermissionsService } from '../permissions/permissions.service';
 
 interface NodeRow extends QueryResultRow {
   id: number;
@@ -125,6 +126,7 @@ export class CanvasService {
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    @Inject(PermissionsService) private readonly permissions: PermissionsService,
   ) {}
 
   /** 按账号校验画布归属和操作权限，避免跨账号访问资源。 */
@@ -153,7 +155,7 @@ export class CanvasService {
     );
     const canvas = result.rows[0];
     if (!canvas) throw new AppError(404, '画布不存在');
-    if (action === 'delete' && actor.role === 'member') throw new AppError(403, '没有删除权限');
+    await this.permissions.assertProject(actor, 'drama', canvas.drama_id, action, client);
     return canvas;
   }
 
@@ -171,6 +173,7 @@ export class CanvasService {
         [dramaId, actor.accountId],
       );
       if (!drama.rowCount) throw new AppError(404, '项目不存在');
+      await this.permissions.assertProject(actor, 'drama', dramaId, 'edit', client);
       const result = await client.query<{ id: number }>(
         'INSERT INTO canvases(account_id,drama_id,title) VALUES ($1,$2,$3) RETURNING id',
         [actor.accountId, dramaId, title],
@@ -181,11 +184,7 @@ export class CanvasService {
 
   /** 返回项目下的画布选项。 */
   async options(actor: Identity, dramaId: number): Promise<{ list: CanvasOption[] }> {
-    const drama = await this.db.query(
-      'SELECT 1 FROM dramas WHERE id=$1 AND account_id=$2 AND deleted_at IS NULL',
-      [dramaId, actor.accountId],
-    );
-    if (!drama.rowCount) throw new AppError(404, '项目不存在');
+    await this.permissions.assertProject(actor, 'drama', dramaId, 'read');
     const result = await this.db.query<CanvasOption>(
       'SELECT id AS canvas_id,title AS canvas_title FROM canvases WHERE drama_id=$1 AND account_id=$2 ORDER BY id',
       [dramaId, actor.accountId],
@@ -296,22 +295,25 @@ export class CanvasService {
     ids: number[],
   ): Promise<{ list: ReturnType<typeof nodeDto>[] }> {
     if (ids.length > 100) throw new AppError(400, '节点数量超限');
-    const result = await this.db.query<NodeRow>(
-      `SELECT n.* FROM nodes n JOIN canvases c ON c.id=n.canvas_id
+    const result = await this.db.query<NodeRow & { drama_id: number }>(
+      `SELECT n.*,d.id AS drama_id FROM nodes n JOIN canvases c ON c.id=n.canvas_id
       JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL WHERE n.id=ANY($1::int[]) AND c.account_id=$2 ORDER BY n.id`,
       [ids, actor.accountId],
     );
+    for (const dramaId of new Set(result.rows.map((row) => row.drama_id)))
+      await this.permissions.assertProject(actor, 'drama', dramaId, 'read');
     return { list: result.rows.map(nodeDto) };
   }
 
   /** 读取当前账号画布中的指定连线。 */
   async connection(actor: Identity, connectionId: number): Promise<ReturnType<typeof edgeDto>> {
-    const result = await this.db.query<EdgeRow>(
-      `SELECT e.* FROM connections e JOIN canvases c ON c.id=e.canvas_id
+    const result = await this.db.query<EdgeRow & { drama_id: number }>(
+      `SELECT e.*,d.id AS drama_id FROM connections e JOIN canvases c ON c.id=e.canvas_id
       JOIN dramas d ON d.id=c.drama_id AND d.deleted_at IS NULL WHERE e.id=$1 AND c.account_id=$2`,
       [connectionId, actor.accountId],
     );
     if (!result.rows[0]) throw new AppError(404, '连线不存在');
+    await this.permissions.assertProject(actor, 'drama', result.rows[0].drama_id, 'read');
     return edgeDto(result.rows[0]);
   }
 

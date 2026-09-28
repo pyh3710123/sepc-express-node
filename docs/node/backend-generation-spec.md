@@ -581,6 +581,8 @@ backend/
 | PUT | `/drama/canvas/rename` | `renameDramaCanvas` |
 | POST | `/drama/canvas/copy` | `copyDramaCanvas` |
 
+回收站中的短剧和项目组自软删除起保留 30 天，由独立 worker 到期自动永久删除。项目组有未删除或尚未到期的子项目、关联画布仍有进行中生成任务时，暂缓清理并重试；永久删除保留任务与积分审计记录，解除已删除画布和节点的任务引用。API 进程不承担定时清理。
+
 ### 7.20 [api/project/script.ts](../../api/project/script.ts)
 
 | 方法 | 路径（不含 `/api`） | 前端函数 |

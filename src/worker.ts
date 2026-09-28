@@ -8,6 +8,10 @@ import { AppModule } from './app.module';
 import { APP_CONFIG, type AppConfig } from './config';
 import { Database } from './database';
 import { GenerationService } from './features/generation/generation.service';
+import { ProjectsService, RECYCLE_PURGE_BATCH_SIZE } from './features/projects/projects.service';
+
+/** 回收站清理每小时巡检一次，启动时立即执行首轮。 */
+const RECYCLE_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
 /** 启动任务消费者，并轮询事务 outbox 投递生成和画布事件。 */
 async function main(): Promise<void> {
@@ -15,6 +19,7 @@ async function main(): Promise<void> {
   const config = app.get<AppConfig>(APP_CONFIG);
   const db = app.get(Database);
   const generation = app.get(GenerationService);
+  const projects = app.get(ProjectsService);
   const connection = new Redis(config.redisUrl, { maxRetriesPerRequest: null });
   const publisher = new Redis(config.redisUrl, { maxRetriesPerRequest: null });
   const queue = new Queue('generation', { connection });
@@ -70,10 +75,31 @@ async function main(): Promise<void> {
     }
   };
   const dispatchPromise = dispatch();
+  const maintenanceAbort = new AbortController();
+  /** 独立清理回收站，避免数据库维护拖慢 outbox 投递。 */
+  async function purgeRecycle(): Promise<void> {
+    while (active) {
+      try {
+        const deletedCount = await projects.purgeExpiredRecycledDramas();
+        if (deletedCount > 0)
+          console.info({ event: 'recycle.purged', deleted_count: deletedCount });
+        if (deletedCount >= RECYCLE_PURGE_BATCH_SIZE) continue;
+      } catch (error) {
+        console.error('Recycle purge failed', error);
+      }
+      try {
+        await delay(RECYCLE_PURGE_INTERVAL_MS, undefined, { signal: maintenanceAbort.signal });
+      } catch (error) {
+        if (active) throw error;
+      }
+    }
+  }
+  const maintenancePromise = purgeRecycle();
   /** 停止轮询并按依赖顺序关闭队列、Redis 与 Nest 应用。 */
   const shutdown = async () => {
     active = false;
-    await dispatchPromise;
+    maintenanceAbort.abort();
+    await Promise.all([dispatchPromise, maintenancePromise]);
     await worker.close();
     await queue.close();
     await connection.quit();

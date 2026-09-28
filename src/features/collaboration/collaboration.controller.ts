@@ -33,4 +33,19 @@ export class CollaborationController {
       input.last_version,
     );
   }
+
+  /** 验证剧本归属并将当前 WS 客户端加入独占的剧本编辑会话。 */
+  @Post('team/join/script')
+  joinScript(
+    @Req() request: AuthedRequest,
+    @Body() body: unknown,
+  ): ReturnType<CollaborationService['joinScript']> {
+    const input = parse(
+      z
+        .object({ script_id: z.coerce.number().int().positive(), client_id: z.string().uuid() })
+        .strict(),
+      body,
+    );
+    return this.collaboration.joinScript(request.auth, input.script_id, input.client_id);
+  }
 }

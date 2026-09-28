@@ -1,0 +1,1972 @@
+{
+  "operations": [
+    {
+      "method": "DELETE",
+      "path": "/api/account/role/{id}",
+      "sources": [
+        {
+          "file": "api/user/role.ts",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/asset",
+      "sources": [
+        {
+          "file": "api/library/index.ts",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/camera",
+      "sources": [
+        {
+          "file": "api/camera/index.ts",
+          "line": 39
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/canvas/node",
+      "sources": [
+        {
+          "file": "api/canvas-node/index.ts",
+          "line": 38
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/drama",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 41
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/drama/canvas/{id}",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 205
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/invoice/{id}",
+      "sources": [
+        {
+          "file": "api/user/invoice.ts",
+          "line": 34
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/material",
+      "sources": [
+        {
+          "file": "api/material/index.ts",
+          "line": 40
+        },
+        {
+          "file": "api/material/index.ts",
+          "line": 48
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/opus/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/project/recycle",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 81
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/script/{id}",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/subject",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/subject/timbre",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 75
+        }
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/voice/delete",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 62
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/{id}",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 71
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/invite",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 134
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/member",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 78
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/member/select",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 152
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/role",
+      "sources": [
+        {
+          "file": "api/user/role.ts",
+          "line": 13
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/space",
+      "sources": [
+        {
+          "file": "api/group/space.ts",
+          "line": 83
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/account/watermark",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 97
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/{id}",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 27
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/signup",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 42
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/signup/draft",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/activity/signup/select",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 58
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/article/detail",
+      "sources": [
+        {
+          "file": "api/article/index.ts",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/asset",
+      "sources": [
+        {
+          "file": "api/library/index.ts",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/asset/history",
+      "sources": [
+        {
+          "file": "api/asset/index.ts",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/camera",
+      "sources": [
+        {
+          "file": "api/camera/index.ts",
+          "line": 15
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/canvas/node",
+      "sources": [
+        {
+          "file": "api/canvas-node/index.ts",
+          "line": 14
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/canvas/node/{id}",
+      "sources": [
+        {
+          "file": "api/canvas-node/index.ts",
+          "line": 22
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/connection/{id}",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/credit",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 125
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/credit/bill",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 311
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/credit/priority",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 47
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/creditConfig",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 172
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/permission",
+      "sources": [
+        {
+          "file": "api/group/role.ts",
+          "line": 106
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/permission/project",
+      "sources": [
+        {
+          "file": "api/group/role.ts",
+          "line": 98
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/statistics/member",
+      "sources": [
+        {
+          "file": "api/group/statistics.ts",
+          "line": 133
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/statistics/member/{id}",
+      "sources": [
+        {
+          "file": "api/group/statistics.ts",
+          "line": 199
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/statistics/panel",
+      "sources": [
+        {
+          "file": "api/group/statistics.ts",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/statistics/project",
+      "sources": [
+        {
+          "file": "api/group/statistics.ts",
+          "line": 125
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/data/statistics/project/{id}",
+      "sources": [
+        {
+          "file": "api/group/statistics.ts",
+          "line": 174
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/canvas/{id}",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 141
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/canvas/image/scene",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/canvas/options",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 162
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/personal",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 121
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/personal/subset",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/drama/subset",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/home/carousel",
+      "sources": [
+        {
+          "file": "api/home/index.ts",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/home/init",
+      "sources": [
+        {
+          "file": "api/common/index.ts",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/image/style",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 50
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/image/style/category",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 43
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/image/style/collection",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 58
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/image/style/recent",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 66
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/invoice/file",
+      "sources": [
+        {
+          "file": "api/user/invoice.ts",
+          "line": 54
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/lighten/preset",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 159
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/material",
+      "sources": [
+        {
+          "file": "api/material/index.ts",
+          "line": 32
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/material/{id}",
+      "sources": [
+        {
+          "file": "api/material/index.ts",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/models/select",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 333
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/node",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/node/models",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 68
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification",
+      "sources": [
+        {
+          "file": "api/common/index.ts",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/notification/{id}",
+      "sources": [
+        {
+          "file": "api/common/index.ts",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 108
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 120
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/award",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 189
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/collection",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 67
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/process/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 242
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/recommend",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 174
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/recommend/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 225
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/top/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 235
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/opus/type",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 44
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/order/info",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 158
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/order/record",
+      "sources": [
+        {
+          "file": "api/home/order.ts",
+          "line": 42
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/order/subscribe",
+      "sources": [
+        {
+          "file": "api/home/order.ts",
+          "line": 82
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/oss/sts",
+      "sources": [
+        {
+          "file": "api/common/index.ts",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/plan",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 41
+        },
+        {
+          "file": "api/user/member.ts",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/plan/renew",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 208
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/plan/seat-expand",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 263
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/plan/upgrade",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 237
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/project/recycle",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 65
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/prompt",
+      "sources": [
+        {
+          "file": "api/prompt/index.ts",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/prompt/model",
+      "sources": [
+        {
+          "file": "api/prompt/index.ts",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 72
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script/{id}",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 100
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script/attrs",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script/getCost",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script/personal",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 84
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/script/recycleBin",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 107
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/space/bill",
+      "sources": [
+        {
+          "file": "api/group/space.ts",
+          "line": 67
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/space/price",
+      "sources": [
+        {
+          "file": "api/group/space.ts",
+          "line": 32
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/subject",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/subject/{id}",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 37
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/subject/timbre",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/user/info",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/voice",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 21
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/volc-asset/{id}",
+      "sources": [
+        {
+          "file": "api/volc-asset/index.ts",
+          "line": 20
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 25
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/accept",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 93
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/change",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 49
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/dissolve",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 102
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/invite",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 85
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/invite/review",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 143
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/quit",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/remove",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 118
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/role",
+      "sources": [
+        {
+          "file": "api/user/role.ts",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/transfer",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 126
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/account/watermark",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 104
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/activity/opus",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 65
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/activity/signup",
+      "sources": [
+        {
+          "file": "api/activity/index.ts",
+          "line": 34
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 54
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/camera",
+      "sources": [
+        {
+          "file": "api/camera/index.ts",
+          "line": 31
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/camera/collect",
+      "sources": [
+        {
+          "file": "api/camera/index.ts",
+          "line": 23
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/canvas/node",
+      "sources": [
+        {
+          "file": "api/canvas-node/index.ts",
+          "line": 30
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/credit/allocate",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 110
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/credit/priority",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 63
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/data/permission",
+      "sources": [
+        {
+          "file": "api/group/role.ts",
+          "line": 113
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/data/permission/project",
+      "sources": [
+        {
+          "file": "api/group/role.ts",
+          "line": 121
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 33
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/batchMove",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 97
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/canvas",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 151
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/canvas/copy",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 229
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/import",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 129
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/merge",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 113
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/move",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 89
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/drama/untie",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 105
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/image/style/collect",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 74
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/image/style/use",
+      "sources": [
+        {
+          "file": "api/image/index.ts",
+          "line": 82
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/invoice/create",
+      "sources": [
+        {
+          "file": "api/user/invoice.ts",
+          "line": 26
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/login/password",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/login/sms",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/login/wechat",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 72
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/material",
+      "sources": [
+        {
+          "file": "api/material/index.ts",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/batch",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 122
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/credit",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 84
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/download",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 51
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/node/prompt/translate",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 75
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/nodes",
+      "sources": [
+        {
+          "file": "api/node/index.ts",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/opus",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 52
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/opus/clone",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 202
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/order/create",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 167
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/order/update",
+      "sources": [
+        {
+          "file": "api/user/member.ts",
+          "line": 183
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/project/recycle/restore",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 73
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/angle",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 69
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/crop",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 53
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/erase",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 131
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/expand",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 99
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/frame-prediction",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 188
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/lighten",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 147
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/matting",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 83
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/redraw",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 115
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/upscale",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 204
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/upscaleVideo",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 220
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/video-audio-split",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 172
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/videoErase",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 236
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/scene/vocal-split",
+      "sources": [
+        {
+          "file": "api/scene/index.ts",
+          "line": 252
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/script",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 34
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/script/batchDestroy",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 64
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/script/import",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 92
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/sms/send",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 12
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/subject",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 29
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/subject/timbre",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 67
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/task/generation/batch_create",
+      "sources": [
+        {
+          "file": "api/task-generation/index.ts",
+          "line": 76
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/task/generation/cancel",
+      "sources": [
+        {
+          "file": "api/task-generation/index.ts",
+          "line": 110
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/task/generation/create",
+      "sources": [
+        {
+          "file": "api/task-generation/index.ts",
+          "line": 35
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/task/generation/progress",
+      "sources": [
+        {
+          "file": "api/task-generation/index.ts",
+          "line": 97
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/team/join",
+      "sources": [
+        {
+          "file": "api/group/index.ts",
+          "line": 69
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/team/join/script",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 171
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload/data",
+      "sources": [
+        {
+          "file": "api/upload/index.ts",
+          "line": 6
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/user/bindPhone",
+      "sources": [
+        {
+          "file": "api/login/index.ts",
+          "line": 83
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/clone",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 76
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/collect",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 29
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/voice/create",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/volc-asset",
+      "sources": [
+        {
+          "file": "api/volc-asset/index.ts",
+          "line": 11
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/volc-asset/check",
+      "sources": [
+        {
+          "file": "api/volc-asset/index.ts",
+          "line": 28
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/workflow/execute",
+      "sources": [
+        {
+          "file": "api/workflow/index.ts",
+          "line": 10
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/account/{id}",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 39
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/credit/priority",
+      "sources": [
+        {
+          "file": "api/user/group.ts",
+          "line": 55
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/drama",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 49
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/drama/canvas/{id}",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 177
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/drama/canvas/rename",
+      "sources": [
+        {
+          "file": "api/project/index.ts",
+          "line": 215
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/opus/collection/{id}",
+      "sources": [
+        {
+          "file": "api/home/opus.ts",
+          "line": 133
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 42
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/{id}",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 57
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/confirmStep",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 146
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/generate",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 130
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/optimize",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 138
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/restore/{id}",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 115
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/script/update",
+      "sources": [
+        {
+          "file": "api/project/script.ts",
+          "line": 122
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/subject",
+      "sources": [
+        {
+          "file": "api/subject/index.ts",
+          "line": 44
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/user/info",
+      "sources": [
+        {
+          "file": "api/user/index.ts",
+          "line": 132
+        }
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/voice/update",
+      "sources": [
+        {
+          "file": "api/voice/index.ts",
+          "line": 52
+        }
+      ]
+    }
+  ]
+}

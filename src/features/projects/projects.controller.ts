@@ -30,6 +30,57 @@ export class ProjectsController {
   /** 注入项目服务，控制器仅负责路由输入校验和身份传递。 */
   constructor(@Inject(ProjectsService) private readonly service: ProjectsService) {}
 
+  /** 查询当前用户个人账号的可导入项目。 */
+  @Get('drama/personal')
+  personalDramas(
+    @Req() req: AuthedRequest,
+    @Query('page') page: unknown,
+    @Query('limit') limit: unknown,
+    @Query('name') name: unknown,
+  ): ReturnType<ProjectsService['personalDramas']> {
+    const input = parse(paginationSchema.extend({ name: z.string().trim().max(100).optional() }), {
+      page,
+      limit,
+      name,
+    });
+    return this.service.personalDramas(req.auth, input.page, input.limit, input.name);
+  }
+
+  /** 平铺个人账号的短剧项目供导入选择。 */
+  @Get('drama/personal/subset')
+  personalSubset(
+    @Req() req: AuthedRequest,
+    @Query('page') page: unknown,
+    @Query('limit') limit: unknown,
+  ): ReturnType<ProjectsService['personalSubset']> {
+    const input = parse(
+      z.object({
+        page: z.coerce.number().int().positive().optional(),
+        limit: z.coerce.number().int().min(1).max(1000).optional(),
+      }),
+      { page, limit },
+    );
+    return this.service.personalSubset(req.auth, input.page, input.limit);
+  }
+
+  /** 从个人账号复制项目及其画布资源到当前团队。 */
+  @Post('drama/import')
+  importPersonalDramas(
+    @Req() req: AuthedRequest,
+    @Body() body: unknown,
+  ): ReturnType<ProjectsService['importPersonalDramas']> {
+    const input = parse(
+      z
+        .object({
+          parent_id: z.coerce.number().int().nonnegative(),
+          ids: z.array(z.coerce.number().int().positive()).min(1).max(100),
+        })
+        .strict(),
+      body,
+    );
+    return this.service.importPersonalDramas(req.auth, input);
+  }
+
   /** 按页查询当前账号的项目。 */
   @Get('drama')
   list(

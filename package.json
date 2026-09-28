@@ -14,13 +14,14 @@
     "db:seed:dev": "tsx scripts/seed.ts",
     "openapi:generate": "node --import tsx scripts/openapi.ts",
     "openapi:check": "node --import tsx scripts/openapi.ts --check",
+    "api:coverage": "node --import tsx scripts/api-coverage.ts",
     "test": "node --import tsx --test test/*.test.ts",
     "test:integration": "node -e \"if (process.env.TEST_DATABASE_URL !== '1') { console.error('Set TEST_DATABASE_URL=1 and start PostgreSQL/Redis first'); process.exit(1) }\" && node --import tsx --test --test-concurrency=1 test/integration/*.test.ts",
     "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"test/**/*.ts\" eslint.config.mjs",
     "format": "prettier --write AGENTS.md README.md docs/node/quality-gates.md package.json tsconfig.json tsconfig.check.json eslint.config.mjs .prettierrc.json .github/workflows/ci.yml src scripts test",
     "format:check": "prettier --check AGENTS.md README.md docs/node/quality-gates.md package.json tsconfig.json tsconfig.check.json eslint.config.mjs .prettierrc.json .github/workflows/ci.yml src scripts test",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run openapi:check && npm test"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run openapi:check && npm run api:coverage -- --strict && npm test"
   },
   "engines": {
     "node": ">=22"

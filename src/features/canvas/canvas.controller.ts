@@ -128,7 +128,15 @@ export class CanvasController {
   }
   /** 媒体签名服务未配置时返回明确的不可用错误。 */
   @Post('node/download')
-  download(): never {
+  async download(@Req() req: AuthedRequest, @Body() body: unknown): Promise<never> {
+    const input = parse(
+      z.object({ node_id: canvasIdSchema, index: z.number().int().min(0).optional() }).strict(),
+      body,
+    );
+    const nodes = await this.service.nodesByIds(req.auth, [input.node_id]);
+    if (!nodes.list[0]) throw new AppError(404, '节点不存在');
+    if (!['image', 'video'].includes(nodes.list[0].type))
+      throw new AppError(400, '节点没有可下载的媒体');
     throw new AppError(503, '媒体签名服务未配置');
   }
 }

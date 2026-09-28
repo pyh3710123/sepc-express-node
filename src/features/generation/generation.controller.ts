@@ -15,6 +15,11 @@ export class GenerationController {
   models(): ReturnType<GenerationService['models']> {
     return this.service.models();
   }
+  /** 返回模型筛选器的稳定主键。 */
+  @Get('models/select')
+  modelSelect(): ReturnType<GenerationService['modelSelect']> {
+    return this.service.modelSelect();
+  }
   /** 校验输入并估算生成任务积分。 */
   @Post('node/credit')
   quote(@Req() req: AuthedRequest, @Body() body: unknown): ReturnType<GenerationService['quote']> {

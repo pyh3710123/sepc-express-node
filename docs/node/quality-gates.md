@@ -13,7 +13,7 @@
 
 | 任务           | 执行内容                                                                  | 失败时                   |
 | -------------- | ------------------------------------------------------------------------- | ------------------------ |
-| `static`       | `npm ci`、格式、ESLint、严格类型检查、OpenAPI 一致性、生产构建            | 阻止汇总门禁通过         |
+| `static`       | `npm ci`、格式、ESLint、严格类型检查、OpenAPI 与接口快照覆盖、生产构建    | 阻止汇总门禁通过         |
 | `unit`         | `npm ci`、`npm test`；运行 `test/*.test.ts`                               | 阻止汇总门禁通过         |
 | `integration`  | 启动 PostgreSQL 16 和 Redis 7，迁移、开发种子、`npm run test:integration` | 阻止汇总门禁通过         |
 | `quality-gate` | 无条件汇总前三项；失败、取消或跳过任一项都返回失败                        | 作为远端唯一必需状态检查 |
@@ -29,7 +29,7 @@ npm run check
 npm run build
 ```
 
-`npm run check` 包含格式、lint、严格类型检查、OpenAPI 检查和无数据库测试。需要复现 CI 集成任务时，先按 [README](../../README.md) 启动 PostgreSQL 与 Redis、运行迁移及种子，再执行：
+`npm run check` 包含格式、lint、严格类型检查、OpenAPI 检查、接口快照严格覆盖和无数据库测试。本机可另运行 `npm run api:coverage -- --strict --frontend-root /Users/mac/AImanju`，验证快照仍与 Nuxt 源码一致。需要复现 CI 集成任务时，先按 [README](../../README.md) 启动 PostgreSQL 与 Redis、运行迁移及种子，再执行：
 
 ```bash
 TEST_DATABASE_URL=1 npm run test:integration

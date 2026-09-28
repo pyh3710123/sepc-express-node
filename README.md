@@ -2,7 +2,7 @@
 
 本仓库是独立运行的 Node.js 22 / TypeScript 后端。实现依据为 [后端生成规格](docs/node/backend-generation-spec.md)，业务 HTTP 前缀为 `/api`，返回体为 `{ "code": 200, "message": "ok", "data": ... }`。`GET /health` 是存活检查，`GET /ready` 检查 PostgreSQL 和 Redis。
 
-原规格引用的 Nuxt 前端源码不在此仓库。当前实现以规格中明确的字段为准；[实施状态](docs/node/implementation-status.md)列出了未实现的接口与待联调字段。`docs/` 已放在仓库根目录，与 `src/` 平级。
+原规格引用的 Nuxt 前端源码不在此仓库。当前实现已按本机 AImanju 前端 `api/` 请求建立 196 个接口操作快照，并与路由及 OpenAPI 进行严格覆盖检查；[实施状态](docs/node/implementation-status.md)列出外部依赖与待联调项。`docs/` 已放在仓库根目录，与 `src/` 平级。
 
 ## 本地启动
 
@@ -62,7 +62,9 @@ Alice 首次登录的活跃账号是个人账号。要操作种子团队画布�
 
 `POST /api/drama` 接受 `{ "parent_id": 0, "is_group": false }`；短剧创建成功后同时返回 `drama_id,canvas_id`，项目组 `is_group:true` 只返回 `drama_id`。`GET /api/drama` 支持 `page,limit,parent_id,name,all` 筛选；`all=1` 为项目组，`all=2` 为项目。`PUT /api/drama` 接受 `{ "drama_id": 1, "title": "新标题" }` 或 `{ "drama_id": 1, "cover_image": "..." }`，封面必须是当前账号已登记的图片资产。
 
-`DELETE /api/drama`、`POST /api/project/recycle/restore`、`DELETE /api/project/recycle` 均使用 `{ "ids": [1, 2] }`。软删除使画布从普通读取和新生成入口隐藏；项目组操作会包含其子项目。`GET /api/project/recycle` 支持 `page,limit,name,type`，仅列出当前账号已删除项目。删除和恢复仅限所有者或管理员；仍有进行中任务时，永久删除返回 409。永久删除保留任务及积分审计记录，任务的已删除画布和节点引用变为 `null`。项目请求形状已对照本机 AImanju 前端调用；剧本回收站和真实 OSS 上传仍待实现。
+`DELETE /api/drama`、`POST /api/project/recycle/restore`、`DELETE /api/project/recycle` 均使用 `{ "ids": [1, 2] }`。软删除使画布从普通读取和新生成入口隐藏；项目组操作会包含其子项目。`GET /api/project/recycle` 支持 `page,limit,name,type`，仅列出当前账号已删除项目。删除和恢复仅限所有者或管理员；仍有进行中任务时，永久删除返回 409。永久删除保留任务及积分审计记录，任务的已删除画布和节点引用变为 `null`。项目请求形状已对照本机 AImanju 前端调用；剧本回收站已接入，真实 OSS 上传需要供应商配置。
+
+worker 启动时及此后每小时清理删除时间已满 30 天的项目，每轮以 100 个项目为阈值，积压时连续处理。项目组会连同子项目一起删除，因此实际数量可能超过阈值。项目组有未到期或未删除的子项目、或关联画布仍有进行中生成任务时，会暂缓清理并在下一轮重试。API 进程单独运行而 worker 未启动时，不会执行自动清理。
 
 `POST /api/drama/move` 使用 `{ "action": "transfer", "drama_id": 1, "target_id": 2 }` 或 `{ "action": "remove", "drama_id": 1 }`；`/api/drama/batchMove` 将 `drama_id` 换为 `ids`。`POST /api/drama/merge` 使用 `{ "ids": [1, 2] }` 合并同一层级短剧，`POST /api/drama/untie` 使用 `{ "ids": [3] }` 解除项目组并保留子项目。`GET /api/drama/subset` 返回当前账号平铺的短剧列表，支持可选 `page,limit`。项目树修改按账号串行执行，避免移动与删除并发时误删已移出的项目。
 
@@ -108,4 +110,4 @@ src/
 
 ## 验证范围
 
-`npm run check` 与 `npm run build` 可在没有外部服务时运行。CI 在 PostgreSQL 16、Redis 7 容器上执行迁移、种子和 `npm run test:integration`，覆盖登录/刷新/账号切换、账号隔离、画布冲突与回滚、积分扣费与生成幂等。真实 Nuxt 客户端、支付、OSS、微信、短信和模型厂商仍需单独联调；具体缺口见[实施状态](docs/node/implementation-status.md)。
+`npm run check` 与 `npm run build` 可在没有外部服务时运行。检查包含前端接口快照与路由/OpenAPI 的严格覆盖比较。CI 在 PostgreSQL 16、Redis 7 容器上执行迁移、种子和 `npm run test:integration`，覆盖登录/刷新/账号切换、账号隔离、画布冲突与回滚、积分扣费与生成幂等。真实 Nuxt 客户端、支付、OSS、微信、短信和模型厂商仍需单独联调；具体缺口见[实施状态](docs/node/implementation-status.md)。

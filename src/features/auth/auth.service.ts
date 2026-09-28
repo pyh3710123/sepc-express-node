@@ -1,7 +1,8 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
+import Redis from 'ioredis';
 import type { PoolClient } from 'pg';
 import { AppError } from '../../common';
 import { APP_CONFIG, type AppConfig } from '../../config';
@@ -19,12 +20,31 @@ export interface Identity {
 export type AuthedRequest = FastifyRequest & { auth: Identity };
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleDestroy {
+  private readonly invalidations: Redis;
   /** 注入数据库与令牌配置，集中处理会话和账号认证逻辑。 */
   constructor(
     @Inject(Database) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
-  ) {}
+  ) {
+    this.invalidations = new Redis(config.redisUrl, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+    });
+  }
+
+  /** 发布跨实例会话撤销；只有数据库事务提交后才通知 WS 节点关闭旧连接。 */
+  async invalidateSessions(sessionIds: string[]): Promise<void> {
+    for (const sessionId of sessionIds) {
+      sessionEvents.emit('invalidated', sessionId);
+      await this.invalidations.publish('session-invalidations', sessionId);
+    }
+  }
+
+  /** 释放会话撤销发布连接。 */
+  onModuleDestroy(): void {
+    this.invalidations.disconnect();
+  }
 
   /** 使用服务端密钥摘要刷新令牌，避免在数据库中保存原始凭证。 */
   private refreshHash(token: string): string {
@@ -68,6 +88,7 @@ export class AuthService {
     }>(
       `SELECT s.user_id, s.account_id, s.revision, m.role
       FROM refresh_sessions s JOIN account_members m ON m.account_id=s.account_id AND m.user_id=s.user_id AND m.status='active'
+      JOIN accounts a ON a.id=s.account_id AND a.dissolved_at IS NULL
       WHERE s.id=$1 AND s.revoked_at IS NULL AND s.expires_at>now()`,
       [payload.sid],
     );
@@ -103,7 +124,8 @@ export class AuthService {
       throw new AppError(401, '账号或密码错误');
     const membership = await this.db.query<{ account_id: number }>(
       `SELECT a.id AS account_id FROM accounts a JOIN account_members m ON m.account_id=a.id
-      WHERE m.user_id=$1 AND m.status='active' ORDER BY (a.type='personal') DESC,a.id LIMIT 1`,
+      WHERE m.user_id=$1 AND m.status='active' AND a.dissolved_at IS NULL
+      ORDER BY (a.type='personal') DESC,a.id LIMIT 1`,
       [user.id],
     );
     if (!membership.rows[0]) throw new AppError(403, '账号不可用');
@@ -141,6 +163,7 @@ export class AuthService {
       }>(
         `SELECT s.id,s.user_id,s.account_id,s.revision FROM refresh_sessions s
         JOIN account_members m ON m.account_id=s.account_id AND m.user_id=s.user_id AND m.status='active'
+        JOIN accounts a ON a.id=s.account_id AND a.dissolved_at IS NULL
         WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now() FOR UPDATE OF s`,
         [this.refreshHash(rawToken)],
       );
@@ -163,7 +186,7 @@ export class AuthService {
         session_id: row.id,
       };
     });
-    sessionEvents.emit('invalidated', result.session_id);
+    await this.invalidateSessions([result.session_id]);
     return { access_token: result.access_token, refresh_token: result.refresh_token };
   }
 
@@ -174,7 +197,8 @@ export class AuthService {
   ): Promise<{ access_token: string; refresh_token: string }> {
     const result = await this.db.transaction(async (client) => {
       const membership = await client.query(
-        'SELECT 1 FROM account_members WHERE account_id=$1 AND user_id=$2 AND status=$3',
+        `SELECT 1 FROM account_members m JOIN accounts a ON a.id=m.account_id
+         WHERE m.account_id=$1 AND m.user_id=$2 AND m.status=$3 AND a.dissolved_at IS NULL`,
         [accountId, identity.userId, 'active'],
       );
       if (!membership.rowCount) throw new AppError(404, '账号不存在');
@@ -200,7 +224,7 @@ export class AuthService {
         refresh_token: refresh,
       };
     });
-    sessionEvents.emit('invalidated', identity.sessionId);
+    await this.invalidateSessions([identity.sessionId]);
     return result;
   }
 

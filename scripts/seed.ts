@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     }
     for (const accountId of [aliceAccount, bobAccount, team]) {
       await client.query(
-        `INSERT INTO credit_wallets(account_id,balance) VALUES ($1,1000)
+        `INSERT INTO credit_wallets(account_id,balance,gift_balance) VALUES ($1,1000,1000)
         ON CONFLICT (account_id) DO NOTHING`,
         [accountId],
       );
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     }
     await client.query(
       `INSERT INTO media_assets(account_id,object_key,mime_type,size_byte,url)
-      VALUES ($1,'demo/team/sample.png','image/png',100,'mock://demo/team/sample.png') ON CONFLICT (object_key) DO NOTHING`,
+      VALUES ($1,'demo/team/sample.png','image/png',100,'mock://demo/team/sample.png') ON CONFLICT (account_id,object_key) DO NOTHING`,
       [team],
     );
     await client.query('COMMIT');
